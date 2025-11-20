@@ -1,0 +1,21 @@
+class ExpertSystem:
+    def __init__(self):
+        self.rules = {
+            "fever": "COVID-19",
+            "cough": "COVID-19",
+            "fatigue": "COVID-19",
+            "sore throat": "COVID-19",
+            "loss of taste or smell": "COVID-19",
+            "shortness of breath": "COVID-19",
+            "headache": "COVID-19",
+            "muscle or body aches": "COVID-19",
+            "diarrhea": "COVID-19",
+            "none": "No COVID-19 symptoms detected"
+        }
+
+    def diagnose(self, symptoms):
+        diagnosis = []
+        for symptom in symptoms:
+            if symptom in self.rules:
+                diagnosis.append(self.rules[symptom])
+        return list(set(diagnosis)) if diagnosis else ["No symptoms provided"]
