@@ -66,7 +66,38 @@ class ExpertSystem:
                 (assert (diagnosis (disease "Possible Common Cold") (confidence 60))))
         """)
         
-        # Rule 5: No significant symptoms
+        # Rule 5: Single cough symptom
+        self.environment.build("""
+            (defrule cough-only
+                (patient (has-cough yes) (has-fever no) (has-fatigue no) 
+                        (has-breathing-difficulty no) (has-taste-loss no)
+                        (has-sore-throat no))
+                =>
+                (assert (diagnosis (disease "Mild respiratory symptoms - possible minor infection") (confidence 30))))
+        """)
+        
+        # Rule 6: Single fever symptom
+        self.environment.build("""
+            (defrule fever-only
+                (patient (has-fever yes) (has-cough no) (has-fatigue no) 
+                        (has-breathing-difficulty no) (has-taste-loss no)
+                        (has-sore-throat no))
+                =>
+                (assert (diagnosis (disease "Fever present - monitor for additional symptoms") (confidence 35))))
+        """)
+        
+        # Rule 7: General single symptom catch-all
+        self.environment.build("""
+            (defrule single-symptom-general
+                (or (patient (has-headache yes))
+                    (patient (has-muscle-aches yes)))
+                (patient (has-fever no) (has-cough no) (has-breathing-difficulty no) 
+                        (has-taste-loss no))
+                =>
+                (assert (diagnosis (disease "Minor symptoms - likely common illness") (confidence 25))))
+        """)
+
+        # Rule 8: No significant symptoms
         self.environment.build("""
             (defrule no-symptoms
                 (patient (has-fever no) (has-cough no) (has-fatigue no) 
