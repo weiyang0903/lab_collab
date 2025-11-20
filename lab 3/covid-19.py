@@ -1,15 +1,7 @@
-from tkinter import Tk
-from ui import ApplicationUI
-from expert_system import ExpertSystem
+"""Compatibility shim: keep old filename but delegate to `covid_19.py`."""
 
-def main():
-    root = Tk()
-    root.title("COVID-19 Diagnosis Expert System")
-    
-    expert_system = ExpertSystem()
-    app_ui = ApplicationUI(root, expert_system)
-    
-    root.mainloop()
+from covid_19 import main
+
 
 if __name__ == "__main__":
     main()

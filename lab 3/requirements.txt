@@ -1,2 +1,3 @@
-tkinter
-clispy
+# No external pip-installable dependencies required.
+# `tkinter` is included in standard Python distributions on most platforms.
+# If you need command-line helpers, consider adding real package names here.

@@ -1,8 +1,10 @@
-from tkinter import Tk, Label, Entry, Button, StringVar, messagebox
+from tkinter import Tk, Label, Entry, Button, StringVar
+import tkinter.messagebox as messagebox
 
 class COVIDDiagnosisUI:
-    def __init__(self, master):
+    def __init__(self, master, expert_system=None):
         self.master = master
+        self.expert_system = expert_system
         master.title("COVID-19 Diagnosis Expert System")
 
         self.label = Label(master, text="Enter your symptoms (comma-separated):")
@@ -19,13 +21,20 @@ class COVIDDiagnosisUI:
         self.result_label.pack()
 
     def submit_symptoms(self):
-        symptoms = self.symptoms_var.get()
-        if symptoms:
-            # Here you would typically call the expert system logic to get a diagnosis
-            # For now, we will just show a message box with the entered symptoms
-            messagebox.showinfo("Symptoms Submitted", f"You entered: {symptoms}")
-        else:
+        raw = self.symptoms_var.get()
+        if not raw:
             messagebox.showwarning("Input Error", "Please enter at least one symptom.")
+            return
+
+        symptoms = [s.strip().lower() for s in raw.split(",") if s.strip()]
+
+        if self.expert_system:
+            diagnosis = self.expert_system.diagnose(symptoms)
+            message = "\n".join(diagnosis)
+            messagebox.showinfo("Diagnosis", message)
+            self.result_label.config(text=message)
+        else:
+            messagebox.showinfo("Symptoms Submitted", f"You entered: {', '.join(symptoms)}")
 
 def main():
     root = Tk()
