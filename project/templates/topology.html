@@ -133,7 +133,8 @@
                             <div class="legend-item"><div class="legend-dot gateway"></div>Gateway</div>
                             <div class="legend-item"><div class="legend-dot normal"></div>Sensor</div>
                             <div class="legend-item"><div class="legend-dot router"></div>Router</div>
-                            <div class="legend-item"><div class="legend-dot danger"></div>Attacked</div>
+                            <div class="legend-item"><div class="legend-dot danger"></div>Malicious</div>
+                            <div class="legend-item"><div class="legend-dot warning"></div>Quarantine</div>
                         </div>
                     </div>
                 </div>
@@ -194,6 +195,21 @@
                     </div>
                 </div>
 
+                <!-- Event Log Panel -->
+                <div class="card event-log-container" style="flex: 1 1 auto;">
+                    <div class="card-header" style="padding: 0.5rem 0.75rem;">
+                        <h2 style="font-size: 0.9rem;"><i class="fas fa-list-alt"></i> Event Log</h2>
+                        <button class="btn-sm warning" onclick="clearEventLog()" title="Clear log"><i class="fas fa-eraser"></i></button>
+                    </div>
+                    <div class="card-body" style="padding: 0.5rem; overflow-y: auto; max-height: 200px;">
+                        <div id="event-log" style="font-size: 0.75rem;">
+                            <div class="log-entry info">
+                                <div class="log-time">--:--:--</div>
+                                <div class="log-msg">System initializing...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
             </div>
         </section>
@@ -238,7 +254,12 @@
             router: { color: { background: '#9b59b6', border: '#8e44ad' }, shape: 'triangle', size: 28 },
             camera: { color: { background: '#2ecc71', border: '#27ae60' }, shape: 'dot', size: 25 },
             actuator: { color: { background: '#2ecc71', border: '#27ae60' }, shape: 'dot', size: 25 },
-            attacked: { color: { background: '#e74c3c', border: '#c0392b' } }
+            // Attack severity color scheme based on FLSec-RPL detection levels
+            attacked: { color: { background: '#e74c3c', border: '#c0392b' } },           // MALICIOUS - Red (permanent block)
+            quarantine: { color: { background: '#f39c12', border: '#d68910' } },         // QUARANTINE - Orange (isolate & monitor)
+            suspicious: { color: { background: '#f39c12', border: '#d68910' } },         // SUSPICIOUS - Orange (same as quarantine)
+            victim: { color: { background: '#9b59b6', border: '#8e44ad' } },             // VICTIM - Purple (suppressed node)
+            warning: { color: { background: '#f1c40f', border: '#d4ac0d' } }             // WARNING - Yellow (monitor only)
         };
 
         function createNodeData(node) {
@@ -247,45 +268,64 @@
             return { id: node.id, label: node.label, type: type, ...config, originalColor: config.color };
         }
 
-        function initNetwork() {
+        async function initNetwork() {
             console.log('Topology: Initializing network...');
             const container = document.getElementById('network-container');
-            if (!container) { console.error('Network container not found!'); return; }
+            if (!container) { 
+                console.error('Network container not found!'); 
+                throw new Error('Network container not found');
+            }
             if (typeof vis === 'undefined') {
                 console.error('vis.js library not loaded!');
                 container.innerHTML = '<p style="color: #e74c3c; text-align: center; padding: 2rem;">Error: vis.js failed to load.</p>';
-                return;
+                throw new Error('vis.js not loaded');
             }
             
-            // Load saved topology or use default
-            const savedTopology = localStorage.getItem('iot-topology');
+            // Load from server first for cross-page sync, fallback to localStorage
             let initialNodes, initialEdges;
-            if (savedTopology) {
-                try {
-                    const saved = JSON.parse(savedTopology);
-                    initialNodes = saved.nodes.map(n => createNodeData(n));
-                    initialEdges = saved.edges.map(e => ({ from: e.from, to: e.to, color: { color: '#3498db', opacity: 0.6 } }));
-                    addLogEntry('info', `Loaded ${saved.nodes.length} nodes from saved topology`);
-                } catch (e) {
-                    console.error('Error loading saved topology:', e);
+            try {
+                const response = await fetch('/api/topology');
+                const data = await response.json();
+                if (data.success && data.topology && data.topology.nodes) {
+                    localStorage.setItem('iot-topology', JSON.stringify(data.topology));
+                    initialNodes = data.topology.nodes.map(n => createNodeData(n));
+                    initialEdges = data.topology.edges.map(e => ({ from: e.from, to: e.to, color: { color: '#3498db', opacity: 0.6 } }));
+                    console.log('Topology: Synced', data.topology.nodes.length, 'nodes from server');
+                } else {
+                    throw new Error('Invalid server response');
+                }
+            } catch (e) {
+                console.log('Topology: Could not load from server, using localStorage:', e.message);
+                const savedTopology = localStorage.getItem('iot-topology');
+                if (savedTopology) {
+                    try {
+                        const saved = JSON.parse(savedTopology);
+                        initialNodes = saved.nodes.map(n => createNodeData(n));
+                        initialEdges = saved.edges.map(e => ({ from: e.from, to: e.to, color: { color: '#3498db', opacity: 0.6 } }));
+                        console.log('Topology: Loaded', saved.nodes.length, 'nodes from localStorage');
+                    } catch (parseErr) {
+                        console.error('Error loading saved topology:', parseErr);
+                        initialNodes = defaultNodes.map(n => createNodeData(n));
+                        initialEdges = defaultEdges.map(e => ({ from: e.from, to: e.to, color: { color: '#3498db', opacity: 0.6 } }));
+                    }
+                } else {
+                    console.log('Topology: Using default nodes');
                     initialNodes = defaultNodes.map(n => createNodeData(n));
                     initialEdges = defaultEdges.map(e => ({ from: e.from, to: e.to, color: { color: '#3498db', opacity: 0.6 } }));
                 }
-            } else {
-                initialNodes = defaultNodes.map(n => createNodeData(n));
-                initialEdges = defaultEdges.map(e => ({ from: e.from, to: e.to, color: { color: '#3498db', opacity: 0.6 } }));
             }
             
             nodes = new vis.DataSet(initialNodes);
             edges = new vis.DataSet(initialEdges);
-            const data = { nodes: nodes, edges: edges };
+            console.log('Topology: DataSets created - nodes:', nodes.get().length, 'edges:', edges.get().length);
+            const networkData = { nodes: nodes, edges: edges };
             const options = {
                 physics: { enabled: true, stabilization: { iterations: 100 } },
                 nodes: { font: { color: '#ecf0f1', size: 12 }, borderWidth: 2 },
                 edges: { width: 2, smooth: { type: 'continuous' } },
                 interaction: { hover: true, tooltipDelay: 200, multiselect: true }
             };
-            network = new vis.Network(container, data, options);
+            network = new vis.Network(container, networkData, options);
             
             // Click event for adding edges
             network.on('click', function(params) {
@@ -318,10 +358,20 @@
             updateNodeList();
             updateNodeCount();
             updateConnectDropdown();
-            addLogEntry('info', `Network initialized with ${nodes.length} nodes`);
+            addLogEntry('info', `Network initialized with ${nodes.get().length} nodes`);
+            console.log('Topology: initNetwork completed successfully');
         }
 
         function addNode() {
+            console.log('addNode called - networkInitialized:', networkInitialized, 'nodes:', nodes);
+            
+            // Check if network is initialized
+            if (!networkInitialized || !nodes) {
+                console.error('Network not ready - networkInitialized:', networkInitialized, 'nodes:', nodes);
+                alert('Network is still loading. Please wait and try again.');
+                return;
+            }
+            
             const id = document.getElementById('new-node-id').value.trim();
             const label = document.getElementById('new-node-label').value.trim();
             const type = document.getElementById('new-node-type').value;
@@ -399,8 +449,50 @@
         
         function updateNodeCount() { document.getElementById('node-count').textContent = nodes.get().length; }
 
-        function markNodeAttacked(nodeId) {
-            console.log('Topology markNodeAttacked:', nodeId);
+        // Severity-based color mapping based on defense action types
+        // BLOCK_PERMANENT → Red (Malicious), QUARANTINE → Orange, VICTIM → Purple, else → Warning Yellow
+        function getNodeColorBySeverity(actionType, level) {
+            const actionUpper = (actionType || '').toUpperCase();
+            const levelUpper = (level || '').toUpperCase();
+            
+            // Check action type first (from defense-action) - highest priority
+            if (actionUpper.includes('BLOCK_PERMANENT') || actionUpper.includes('MALICIOUS')) {
+                return nodeTypes.attacked;  // Red
+            }
+            if (actionUpper.includes('QUARANTINE') || actionUpper.includes('ISOLATE')) {
+                return nodeTypes.quarantine;  // Orange
+            }
+            if (actionUpper.includes('VICTIM') || actionUpper.includes('SUPPRESSED')) {
+                return nodeTypes.victim;  // Purple
+            }
+            if (actionUpper.includes('BLOCK_TEMPORARY')) {
+                return nodeTypes.quarantine;  // Orange
+            }
+            
+            // Check alert level (from attack-alert)
+            // Only CRITICAL is Red, HIGH/MEDIUM is Orange (may need quarantine observation)
+            if (levelUpper === 'CRITICAL' || levelUpper === 'MALICIOUS') {
+                return nodeTypes.attacked;  // Red - confirmed malicious
+            }
+            if (levelUpper === 'HIGH' || levelUpper === 'QUARANTINE' || levelUpper === 'SUSPICIOUS') {
+                return nodeTypes.quarantine;  // Orange - requires observation/quarantine
+            }
+            if (levelUpper === 'MEDIUM') {
+                return nodeTypes.warning;  // Yellow - monitor
+            }
+            if (levelUpper === 'VICTIM') {
+                return nodeTypes.victim;  // Purple
+            }
+            if (levelUpper === 'WARNING' || levelUpper === 'LOW') {
+                return nodeTypes.warning;  // Yellow
+            }
+            
+            // Default to warning (yellow) for unknown levels
+            return nodeTypes.warning;
+        }
+
+        function markNodeAttacked(nodeId, actionType, level) {
+            console.log('Topology markNodeAttacked:', nodeId, 'actionType:', actionType, 'level:', level);
             let node = nodes.get(nodeId);
             if (!node) {
                 const allNodes = nodes.get();
@@ -409,12 +501,23 @@
                 }
             }
             if (node) {
-                nodes.update({ id: nodeId, color: nodeTypes.attacked.color });
+                // Get color based on severity/action type
+                const colorConfig = getNodeColorBySeverity(actionType, level);
+                const targetColor = colorConfig.color;
+                const flashColor = colorConfig === nodeTypes.attacked 
+                    ? { background: '#ff6b6b', border: '#c0392b' }  // Red flash
+                    : colorConfig === nodeTypes.quarantine 
+                    ? { background: '#f5b041', border: '#d68910' }  // Orange flash
+                    : colorConfig === nodeTypes.victim
+                    ? { background: '#bb8fce', border: '#8e44ad' }  // Purple flash
+                    : { background: '#f7dc6f', border: '#d4ac0d' }; // Yellow flash
+                
+                nodes.update({ id: nodeId, color: targetColor });
                 // Flash effect
-                setTimeout(() => nodes.update({ id: nodeId, color: { background: '#ff6b6b', border: '#c0392b' } }), 200);
-                setTimeout(() => nodes.update({ id: nodeId, color: nodeTypes.attacked.color }), 400);
-                setTimeout(() => nodes.update({ id: nodeId, color: { background: '#ff6b6b', border: '#c0392b' } }), 600);
-                setTimeout(() => nodes.update({ id: nodeId, color: nodeTypes.attacked.color }), 800);
+                setTimeout(() => nodes.update({ id: nodeId, color: flashColor }), 200);
+                setTimeout(() => nodes.update({ id: nodeId, color: targetColor }), 400);
+                setTimeout(() => nodes.update({ id: nodeId, color: flashColor }), 600);
+                setTimeout(() => nodes.update({ id: nodeId, color: targetColor }), 800);
             }
             updateThreatLevel();
         }
@@ -522,6 +625,10 @@
 
         function addLogEntry(type, message) {
             const log = document.getElementById('event-log');
+            if (!log) {
+                console.log(`[${type}] ${message}`);  // Fallback to console
+                return;
+            }
             const time = new Date().toLocaleTimeString();
             const entry = document.createElement('div');
             entry.className = `log-entry ${type}`;
@@ -532,7 +639,9 @@
         }
         
         function clearEventLog() {
-            document.getElementById('event-log').innerHTML = `
+            const log = document.getElementById('event-log');
+            if (!log) return;
+            log.innerHTML = `
                 <div class="log-entry info">
                     <div class="log-time">${new Date().toLocaleTimeString()}</div>
                     <div class="log-msg">Event log cleared. Monitoring resumed...</div>
@@ -556,9 +665,23 @@
             fill.style.width = percent + '%';
             fill.className = 'meter-fill ' + className;
         }
+        
+        // Flag to track initialization status
+        let networkInitialized = false;
 
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(initNetwork, 100);
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('Topology: DOMContentLoaded fired');
+            
+            // Initialize network and wait for completion
+            try {
+                await initNetwork();
+                networkInitialized = true;
+                console.log('Topology: Network initialized successfully, nodes:', nodes ? nodes.get().length : 'null');
+            } catch (err) {
+                console.error('Topology: Failed to initialize network:', err);
+                alert('Failed to initialize network: ' + err.message);
+            }
+            
             socket = io();
             
             socket.on('connect', function() {
@@ -600,7 +723,8 @@
                 alertCount++;
                 updateStats();
                 addLogEntry('alert', `🚨 ALERT: ${data.attack_type || data.type} - ${data.message}`);
-                if (data.node_id) markNodeAttacked(data.node_id);
+                // Pass level/action_type for color differentiation
+                if (data.node_id) markNodeAttacked(data.node_id, data.action_type, data.level);
                 updateThreatLevel();
             });
             
@@ -609,6 +733,10 @@
                 defenseCount++;
                 updateStats();
                 addLogEntry('defense', `🛡 DEFENSE: ${data.action_type} - ${data.description}`);
+                // Also mark node with defense action type for correct color
+                if (data.target_node || data.target) {
+                    markNodeAttacked(data.target_node || data.target, data.action_type, null);
+                }
             });
             
             socket.on('inference_path', function(data) {

@@ -82,6 +82,26 @@ def reset_clips_environment():
         return False
 
 
+# Server-side topology storage for cross-page synchronization
+current_topology = {
+    'nodes': [
+        {'id': 'gateway-001', 'label': 'IoT Gateway\n(Border Router)', 'type': 'gateway'},
+        {'id': 'router-001', 'label': 'Router-01', 'type': 'router'},
+        {'id': 'sensor-001', 'label': 'Temp Sensor', 'type': 'sensor'},
+        {'id': 'sensor-002', 'label': 'Humidity', 'type': 'sensor'},
+        {'id': 'camera-001', 'label': 'Security Cam', 'type': 'camera'},
+        {'id': 'actuator-001', 'label': 'Smart Lock', 'type': 'actuator'}
+    ],
+    'edges': [
+        {'from': 'gateway-001', 'to': 'router-001'},
+        {'from': 'router-001', 'to': 'sensor-001'},
+        {'from': 'router-001', 'to': 'sensor-002'},
+        {'from': 'gateway-001', 'to': 'camera-001'},
+        {'from': 'gateway-001', 'to': 'actuator-001'}
+    ]
+}
+
+
 def log_inference(message):
     """Log inference steps"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -103,34 +123,36 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
     current_ts = int(datetime.now().timestamp()) % 10000
     
     # Map attack types to severity and configuration (Based on Literature)
+    # Attack configuration mapping
+    # Literature references (internal only):
+    # - DIO-Suppression: FLSec-RPL [2]
+    # - Jamming: [4][5]
+    # - Sinkhole/Bidirectional: PRBA [7][8][9]
+    # - SelectiveForwarding/DoS/RankAttack: RF [10]
+    # - XAI-Anomaly: [11][13]
+    # - Sinkhole-UVM: UVM [14][16][17]
+    # - HelloFlood/VersionNumber/RankDecrease: Hybrid IDS [18]-[21]
+    # - SRPL-*: SRPL-RP [22][24]
+    # - Dist-IDS: [25][26]
+    # - Sybil: FLBT-RPL [28]
     attack_config = {
-        # FLSec-RPL (Reference [2])
-        'DIO-Suppression': {'severity': 'CRITICAL', 'confidence': 90, 'description': 'FLSec-RPL: DIO Neighbor Suppression Attack'},
-        # Jamming (Reference [4][5])
-        'Jamming': {'severity': 'CRITICAL', 'confidence': 85, 'description': 'Jamming: Wireless Signal Jamming Attack'},
-        # PRBA Sinkhole (Reference [7][8][9])
-        'Sinkhole': {'severity': 'CRITICAL', 'confidence': 85, 'description': 'PRBA: Sinkhole Attack - Malicious node forges low Rank to attract traffic'},
-        'Sinkhole-Bidirectional': {'severity': 'HIGH', 'confidence': 80, 'description': 'PRBA: Bidirectional Behavior Anomaly Detection'},
-        # RF Multi-Attack (Reference [10])
-        'SelectiveForwarding': {'severity': 'HIGH', 'confidence': 75, 'description': 'RF: Selective Forwarding Attack - Abnormal packet drop rate'},
-        'DoS': {'severity': 'CRITICAL', 'confidence': 90, 'description': 'RF: DoS Attack - Abnormal duplicate packet rate and forwarding rate'},
-        'RankAttack': {'severity': 'HIGH', 'confidence': 80, 'description': 'RF: Rank Attack - Rank value mismatch'},
-        # XAI Anomaly (Reference [11][13])
-        'XAI-Anomaly': {'severity': 'HIGH', 'confidence': 78, 'description': 'XAI: Isolation Forest detected anomalous behavior pattern'},
-        # UVM Voting (Reference [14][16][17])
-        'Sinkhole-UVM': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'UVM: Voting method determined Sinkhole attack'},
-        # Hybrid IDS (Reference [18]-[21])
-        'HelloFlood': {'severity': 'HIGH', 'confidence': 90, 'description': 'Hybrid: Control Message Flooding Attack (DIO/DIS/DAO)'},
-        'VersionNumber': {'severity': 'HIGH', 'confidence': 80, 'description': 'Hybrid: Version Number Attack - Forged high version to trigger DODAG reconstruction'},
-        'RankDecrease': {'severity': 'HIGH', 'confidence': 82, 'description': 'Hybrid: Rank Decrease Attack'},
-        # SRPL-RP (Reference [22][24])
-        'SRPL-Malicious': {'severity': 'CRITICAL', 'confidence': 92, 'description': 'SRPL-RP: Parent-Child Rank Violation - Block permanently'},
-        'SRPL-RankDecrease': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'SRPL-RP: Abnormal Rank Decrease'},
-        'SRPL-RankIncrease': {'severity': 'HIGH', 'confidence': 75, 'description': 'SRPL-RP: Abnormal Rank Increase'},
-        # Distributed IDS (Reference [25][26])
-        'Dist-IDS-Violation': {'severity': 'HIGH', 'confidence': 80, 'description': 'Dist-IDS: Violation count exceeded threshold'},
-        # FLBT-RPL Sybil (Reference [28])
-        'Sybil': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'FLBT-RPL: Sybil Attack - Single node forging multiple identities'}
+        'DIO-Suppression': {'severity': 'CRITICAL', 'confidence': 90, 'description': 'DIO Neighbor Suppression Attack - Excessive DIO messages with short intervals'},
+        'Jamming': {'severity': 'CRITICAL', 'confidence': 85, 'description': 'Wireless Signal Jamming Attack - High ETX and retransmissions'},
+        'Sinkhole': {'severity': 'CRITICAL', 'confidence': 85, 'description': 'Sinkhole Attack - Malicious node forges low Rank to attract traffic'},
+        'Sinkhole-Bidirectional': {'severity': 'HIGH', 'confidence': 80, 'description': 'Bidirectional Behavior Anomaly - Suspicious traffic patterns detected'},
+        'SelectiveForwarding': {'severity': 'HIGH', 'confidence': 75, 'description': 'Selective Forwarding Attack - Abnormal packet drop rate detected'},
+        'DoS': {'severity': 'CRITICAL', 'confidence': 90, 'description': 'DoS Attack - Abnormal duplicate packet rate and forwarding rate'},
+        'RankAttack': {'severity': 'HIGH', 'confidence': 80, 'description': 'Rank Attack - Significant Rank value manipulation detected'},
+        'XAI-Anomaly': {'severity': 'HIGH', 'confidence': 78, 'description': 'Anomaly Detected - Unusual behavior pattern identified'},
+        'Sinkhole-UVM': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'Sinkhole Attack - Multiple detection rules confirmed malicious behavior'},
+        'HelloFlood': {'severity': 'HIGH', 'confidence': 90, 'description': 'Hello Flood Attack - Control Message Flooding (DIO/DIS/DAO)'},
+        'VersionNumber': {'severity': 'HIGH', 'confidence': 80, 'description': 'Version Number Attack - Forged version triggers DODAG reconstruction'},
+        'RankDecrease': {'severity': 'HIGH', 'confidence': 82, 'description': 'Rank Decrease Attack - Suspicious Rank reduction detected'},
+        'SRPL-Malicious': {'severity': 'CRITICAL', 'confidence': 92, 'description': 'Malicious Node - Parent-Child Rank Violation detected'},
+        'SRPL-RankDecrease': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'Abnormal Rank Decrease - Beyond acceptable threshold'},
+        'SRPL-RankIncrease': {'severity': 'HIGH', 'confidence': 75, 'description': 'Abnormal Rank Increase - Potential manipulation detected'},
+        'Dist-IDS-Violation': {'severity': 'HIGH', 'confidence': 80, 'description': 'Security Violation - Threshold exceeded in monitoring window'},
+        'Sybil': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'Sybil Attack - Multiple fake identities detected from single node'}
     }
     
     config = attack_config.get(attack_type, {
@@ -648,13 +670,21 @@ def api_clear_defense_data():
 @app.route('/api/topology', methods=['GET', 'POST'])
 def api_topology():
     """Get or update network topology - syncs across all pages"""
+    global current_topology
     if request.method == 'POST':
         data = request.get_json()
+        # Store topology on server for synchronization
+        if data and 'nodes' in data and 'edges' in data:
+            current_topology = {
+                'nodes': data['nodes'],
+                'edges': data['edges']
+            }
+            log_inference(f"Topology updated: {len(data['nodes'])} nodes, {len(data['edges'])} edges")
         # Broadcast topology update to all clients
-        socketio.emit('topology_updated', data, namespace='/')
-        return jsonify({'success': True, 'message': 'Topology updated'})
-    # GET: Return current topology (stored in localStorage on clients)
-    return jsonify({'success': True, 'message': 'Use localStorage for topology'})
+        socketio.emit('topology_updated', current_topology, namespace='/')
+        return jsonify({'success': True, 'message': 'Topology updated and synced'})
+    # GET: Return current server-stored topology
+    return jsonify({'success': True, 'topology': current_topology})
 
 
 @app.route('/api/load_rules', methods=['POST'])
@@ -708,11 +738,56 @@ def inject_attack():
     elif attack_type == 'VersionNumber':
         kwargs['prev_version'] = data.get('prev_version', 5)
         kwargs['curr_version'] = data.get('curr_version', 15)
+    elif attack_type == 'DIO-Suppression':
+        kwargs['dio_level'] = data.get('dio_level', 'High')
+        kwargs['dti_level'] = data.get('dti_level', 'Low')
+        kwargs['stia_level'] = data.get('stia_level', 'Low')
+    elif attack_type == 'Jamming':
+        kwargs['etx_level'] = data.get('etx_level', 'High')
+        kwargs['retrans_level'] = data.get('retrans_level', 'High')
     elif attack_type == 'SelectiveForwarding':
         kwargs['drop_rate'] = data.get('drop_rate', 0.35)
+    elif attack_type == 'DoS':
+        kwargs['dpr'] = data.get('dpr', 0.8)
+        kwargs['pfr'] = data.get('pfr', 0.9)
+    elif attack_type == 'RankAttack':
+        kwargs['prev_rank'] = data.get('prev_rank', 200)
+        kwargs['curr_rank'] = data.get('curr_rank', 50)
+    elif attack_type == 'XAI-Anomaly':
+        kwargs['npc'] = data.get('npc', 1.0)
+        kwargs['nc'] = data.get('nc', 2.0)
+        kwargs['udp_recv'] = data.get('udp_recv', 15.0)
+    elif attack_type == 'Sinkhole-UVM':
+        kwargs['abnormal_count'] = data.get('abnormal_count', 4)
+        kwargs['total_rules'] = data.get('total_rules', 5)
+    elif attack_type == 'RankDecrease':
+        kwargs['recv_rank'] = data.get('recv_rank', 50)
+        kwargs['avg_rank'] = data.get('avg_rank', 200)
+        kwargs['max_rank'] = data.get('max_rank', 300)
+        kwargs['k_factor'] = data.get('k_factor', 0.3)
+    elif attack_type == 'SRPL-Malicious':
+        kwargs['ncr'] = data.get('ncr', 100)
+        kwargs['npr'] = data.get('npr', 150)
+    elif attack_type == 'SRPL-RankDecrease':
+        kwargs['ncr'] = data.get('ncr', 80)
+        kwargs['nor'] = data.get('nor', 150)
+        kwargs['msr'] = data.get('msr', 120)
+        kwargs['pst'] = data.get('pst', 20)
+    elif attack_type == 'SRPL-RankIncrease':
+        kwargs['ncr'] = data.get('ncr', 200)
+        kwargs['nor'] = data.get('nor', 150)
+        kwargs['mcr'] = data.get('mcr', 180)
+    elif attack_type == 'Sinkhole-Bidirectional':
+        kwargs['parent_id'] = data.get('parent_id', 'parent-001')
+        kwargs['count'] = data.get('count', 6)
     elif attack_type == 'Sybil':
         kwargs['ics'] = data.get('ics', 0.9)
         kwargs['scs'] = data.get('scs', 0.8)
+        kwargs['res'] = data.get('res', 0.7)
+        kwargs['rms'] = data.get('rms', 0.85)
+    elif attack_type == 'Dist-IDS-Violation':
+        kwargs['violation_count'] = data.get('violation_count', 6)
+        kwargs['threshold'] = data.get('threshold', 5)
     
     # Validate attack parameters and generate warnings if attack won't be effective
     warnings = []
@@ -733,6 +808,29 @@ def inject_attack():
         curr_version = kwargs.get('curr_version', 15)
         if curr_version <= prev_version:
             warnings.append(f"⚠️ Ineffective Attack: Forged Version ({curr_version}) must be greater than Original Version ({prev_version}).")
+    elif attack_type == 'DIO-Suppression':
+        dio_level = kwargs.get('dio_level', 'High')
+        dti_level = kwargs.get('dti_level', 'Low')
+        stia_level = kwargs.get('stia_level', 'Low')
+        # Valid attack combinations:
+        # - DIO=High, DTI=Low, STIA=Low → Malicious
+        # - DIO=High, DTI=Low, STIA=Medium → Quarantine
+        # - DIO=Low, DTI=Low, STIA=Low → Victim
+        # - DIO=Medium, DTI=Medium, STIA=Medium → Normal
+        valid_combinations = [
+            ('High', 'Low', 'Low'),      # Malicious
+            ('High', 'Low', 'Medium'),   # Quarantine
+            ('Low', 'Low', 'Low'),       # Victim
+            ('Medium', 'Medium', 'Medium')  # Normal
+        ]
+        current_combo = (dio_level, dti_level, stia_level)
+        if current_combo not in valid_combinations:
+            warnings.append(f"⚠️ Ineffective Attack: The combination DIO={dio_level}, DTI={dti_level}, STIA={stia_level} does not match any detection rule.")
+            warnings.append(f"💡 Valid combinations for detection:")
+            warnings.append(f"   • DIO=High + DTI=Low + STIA=Low → MALICIOUS (Block Permanently)")
+            warnings.append(f"   • DIO=High + DTI=Low + STIA=Medium → QUARANTINE (Isolate for Observation)")
+            warnings.append(f"   • DIO=Low + DTI=Low + STIA=Low → VICTIM (Possibly Suppressed)")
+            warnings.append(f"   • DIO=Medium + DTI=Medium + STIA=Medium → NORMAL")
     
     # Inject the attack fact
     success, result = inject_attack_fact(attack_type, source, target, **kwargs)

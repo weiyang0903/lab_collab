@@ -77,10 +77,14 @@
         .alert-item.critical { border-color: #e74c3c; background: rgba(231,76,60,0.1); }
         .alert-item.high { border-color: #e67e22; background: rgba(230,126,34,0.1); }
         .alert-item.warning { border-color: #f39c12; background: rgba(243,156,18,0.1); }
+        .alert-item.quarantine { border-color: #f39c12; background: rgba(243,156,18,0.15); }
+        .alert-item.victim { border-color: #9b59b6; background: rgba(155,89,182,0.1); }
         .alert-icon { font-size: 1.5rem; }
         .alert-item.critical .alert-icon { color: #e74c3c; }
         .alert-item.high .alert-icon { color: #e67e22; }
         .alert-item.warning .alert-icon { color: #f39c12; }
+        .alert-item.quarantine .alert-icon { color: #f39c12; }
+        .alert-item.victim .alert-icon { color: #9b59b6; }
         .content-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
         .full-width { grid-column: span 2; }
     </style>
@@ -218,7 +222,12 @@
                 malicious: { 'background-color': '#e74c3c', 'border-color': '#c0392b', 'shadow-color': '#e74c3c' },
                 sensor: { 'background-color': '#2ecc71', 'border-color': '#27ae60', 'shadow-color': '#2ecc71' },
                 camera: { 'background-color': '#2ecc71', 'border-color': '#27ae60', 'shadow-color': '#2ecc71' },
-                actuator: { 'background-color': '#2ecc71', 'border-color': '#27ae60', 'shadow-color': '#2ecc71' }
+                actuator: { 'background-color': '#2ecc71', 'border-color': '#27ae60', 'shadow-color': '#2ecc71' },
+                // FLSec-RPL severity-based colors
+                quarantine: { 'background-color': '#f39c12', 'border-color': '#d68910', 'shadow-color': '#f39c12' },
+                suspicious: { 'background-color': '#f39c12', 'border-color': '#d68910', 'shadow-color': '#f39c12' },
+                victim: { 'background-color': '#9b59b6', 'border-color': '#8e44ad', 'shadow-color': '#9b59b6' },
+                warning: { 'background-color': '#f1c40f', 'border-color': '#d4ac0d', 'shadow-color': '#f1c40f' }
             };
             return styles[type] || styles.sensor;
         }
@@ -240,8 +249,26 @@
             return { nodes: defaultNodes, edges: defaultEdges };
         }
         
-        function initTopology() {
-            const topology = loadTopologyFromStorage();
+        async function loadTopologyFromServer() {
+            // Fetch latest topology from server for cross-page sync
+            try {
+                const response = await fetch('/api/topology');
+                const data = await response.json();
+                if (data.success && data.topology && data.topology.nodes) {
+                    // Update localStorage with server topology
+                    localStorage.setItem('iot-topology', JSON.stringify(data.topology));
+                    console.log('Dashboard: Loaded topology from server:', data.topology.nodes.length, 'nodes');
+                    return data.topology;
+                }
+            } catch (err) {
+                console.log('Dashboard: Could not load from server, using localStorage');
+            }
+            return loadTopologyFromStorage();
+        }
+        
+        async function initTopology() {
+            // Load from server first for sync, fallback to localStorage
+            const topology = await loadTopologyFromServer();
             
             const elements = [];
             // Add nodes
@@ -265,9 +292,12 @@
                     { selector: 'node[type="malicious"]', style: { 'background-color': '#e74c3c', 'border-color': '#c0392b', 'shadow-color': '#e74c3c' } },
                     { selector: 'node.hidden', style: { 'display': 'none' } },
                     { selector: 'node.warning', style: { 'background-color': '#f39c12', 'border-color': '#d68910', 'shadow-color': '#f39c12' } },
+                    { selector: 'node.quarantine', style: { 'background-color': '#f39c12', 'border-color': '#d68910', 'shadow-color': '#f39c12', 'shadow-blur': 25, 'shadow-opacity': 1 } },
+                    { selector: 'node.victim', style: { 'background-color': '#9b59b6', 'border-color': '#8e44ad', 'shadow-color': '#9b59b6', 'shadow-blur': 25, 'shadow-opacity': 1 } },
                     { selector: 'node.danger', style: { 'background-color': '#e74c3c', 'border-color': '#c0392b', 'shadow-color': '#e74c3c', 'shadow-blur': 25, 'shadow-opacity': 1 } },
                     { selector: 'edge', style: { 'width': 2, 'line-color': '#3498db', 'opacity': 0.7, 'curve-style': 'bezier' } },
-                    { selector: 'edge.attack', style: { 'line-color': '#e74c3c', 'width': 4, 'line-style': 'dashed' } }
+                    { selector: 'edge.attack', style: { 'line-color': '#e74c3c', 'width': 4, 'line-style': 'dashed' } },
+                    { selector: 'edge.quarantine', style: { 'line-color': '#f39c12', 'width': 4, 'line-style': 'dashed' } }
                 ],
                 layout: { name: 'cose', idealEdgeLength: 150, nodeRepulsion: 8000, animate: true }
             });
@@ -278,9 +308,9 @@
             console.log('Dashboard: Topology initialized with', topology.nodes.length, 'nodes');
         }
         
-        function reloadTopology() {
-            // Reload topology from localStorage
-            const topology = loadTopologyFromStorage();
+        function reloadTopology(topologyData) {
+            // Use provided data or reload from localStorage
+            const topology = topologyData || loadTopologyFromStorage();
             
             // Clear and rebuild cytoscape
             cy.elements().remove();
@@ -305,7 +335,41 @@
             console.log('Dashboard: Topology reloaded with', topology.nodes.length, 'nodes');
         }
         
-        function markNodeAttacked(nodeId) {
+        // Severity-based class mapping for FLSec-RPL detection levels
+        function getNodeClassBySeverity(actionType, level) {
+            const actionUpper = (actionType || '').toUpperCase();
+            const levelUpper = (level || '').toUpperCase();
+            
+            // Check action type first (from defense-action) - highest priority
+            if (actionUpper.includes('BLOCK_PERMANENT') || actionUpper.includes('MALICIOUS')) {
+                return 'danger';  // Red
+            }
+            if (actionUpper.includes('QUARANTINE') || actionUpper.includes('ISOLATE') || actionUpper.includes('BLOCK_TEMPORARY')) {
+                return 'quarantine';  // Orange
+            }
+            if (actionUpper.includes('VICTIM') || actionUpper.includes('SUPPRESSED')) {
+                return 'victim';  // Purple
+            }
+            
+            // Check alert level
+            // Only CRITICAL is Red, HIGH/MEDIUM is Orange (may need quarantine observation)
+            if (levelUpper === 'CRITICAL' || levelUpper === 'MALICIOUS') {
+                return 'danger';  // Red - confirmed malicious
+            }
+            if (levelUpper === 'HIGH' || levelUpper === 'QUARANTINE' || levelUpper === 'SUSPICIOUS') {
+                return 'quarantine';  // Orange - requires observation/quarantine
+            }
+            if (levelUpper === 'MEDIUM') {
+                return 'warning';  // Yellow - monitor
+            }
+            if (levelUpper === 'VICTIM') {
+                return 'victim';  // Purple
+            }
+            
+            return 'warning';  // Yellow for unknown
+        }
+        
+        function markNodeAttacked(nodeId, actionType, level) {
             let node = cy.getElementById(nodeId);
             if (node.length === 0) {
                 cy.nodes().forEach(n => {
@@ -313,10 +377,15 @@
                 });
             }
             if (node && node.length > 0) {
-                node.removeClass('warning hidden').addClass('danger');
-                nodeStates[node.id()] = 'danger';
+                // Get the appropriate class based on severity
+                const nodeClass = getNodeClassBySeverity(actionType, level);
+                const edgeClass = nodeClass === 'danger' ? 'attack' : 'quarantine';
+                
+                // Remove all status classes and add the correct one
+                node.removeClass('warning hidden danger quarantine victim').addClass(nodeClass);
+                nodeStates[node.id()] = nodeClass;
                 node.animate({ style: { 'width': 65, 'height': 65 } }, { duration: 200 }).animate({ style: { 'width': 50, 'height': 50 } }, { duration: 200 });
-                node.connectedEdges().addClass('attack');
+                node.connectedEdges().removeClass('attack quarantine').addClass(edgeClass);
             }
             if (nodeId.includes('malicious')) {
                 const malNode = cy.getElementById('malicious-node-001');
@@ -327,11 +396,11 @@
         function resetTopology() {
             // Only reset visual state, don't clear server data
             cy.nodes().forEach(node => {
-                if (node.data('type') !== 'malicious') { node.removeClass('warning danger'); }
+                if (node.data('type') !== 'malicious') { node.removeClass('warning danger quarantine victim'); }
                 else { node.addClass('hidden'); }
                 nodeStates[node.id()] = 'normal';
             });
-            cy.edges().removeClass('attack');
+            cy.edges().removeClass('attack quarantine');
         }
         
         function addAlert(alert) {
@@ -339,7 +408,7 @@
             const noAlerts = document.getElementById('no-alerts');
             if (noAlerts) noAlerts.style.display = 'none';
             const levelClass = (alert.level || 'warning').toLowerCase();
-            const iconMap = { 'critical': 'fa-skull-crossbones', 'high': 'fa-exclamation-triangle', 'warning': 'fa-exclamation-circle' };
+            const iconMap = { 'critical': 'fa-skull-crossbones', 'high': 'fa-exclamation-triangle', 'warning': 'fa-exclamation-circle', 'quarantine': 'fa-shield-alt', 'victim': 'fa-user-slash' };
             const alertHtml = `
                 <div class="alert-item ${levelClass}">
                     <div class="alert-icon"><i class="fas ${iconMap[levelClass] || 'fa-bell'}"></i></div>
@@ -351,7 +420,8 @@
                 </div>
             `;
             feed.insertAdjacentHTML('afterbegin', alertHtml);
-            if (alert.node_id) { markNodeAttacked(alert.node_id); }
+            // Pass action_type and level for correct color differentiation
+            if (alert.node_id) { markNodeAttacked(alert.node_id, alert.action_type, alert.level); }
             updateStats();
         }
         
@@ -449,8 +519,10 @@
             socket.on('topology_updated', function(data) {
                 console.log('Dashboard: Topology update received', data);
                 if (data && data.nodes) {
+                    // Save to localStorage for persistence
                     localStorage.setItem('iot-topology', JSON.stringify(data));
-                    reloadTopology();
+                    // Use data directly to avoid race condition
+                    reloadTopology(data);
                     addLogEntry('🔄 Network topology updated');
                 }
             });

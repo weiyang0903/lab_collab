@@ -308,12 +308,12 @@
       (attack-type "DIO-Suppression-Malicious")
       (node-id ?nid)
       (severity "CRITICAL")
-      (message (str-cat "FLSec-RPL: Node " ?nid " identified as MALICIOUS - High DIO frequency, Low transaction interval, Low Trickle aggregation"))
+      (message (str-cat "DIO Suppression: Node " ?nid " identified as MALICIOUS - High DIO frequency, Low transaction interval, Low Trickle aggregation"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-FLSec-1-Malicious")
+      (rule-name "DIO-Suppression-Malicious-Detection")
       (trigger-condition (str-cat "DIO_Counter=High AND DTI=Low AND STIA=Low"))
       (conclusion "Aggressive_Weight = Malicious (Malicious Node)")
       (node-id ?nid)
@@ -322,7 +322,7 @@
    (assert (reason
       (attack-type "DIO-Suppression-Malicious")
       (node-id ?nid)
-      (explanation "FLSec-RPL Fuzzy Logic: Node sends excessive DIO messages with very short intervals, attempting to suppress neighbor nodes")
+      (explanation "DIO Suppression Detection: Node sends excessive DIO messages with very short intervals, attempting to suppress neighbor nodes")
       (evidence "DIO_Counter=High, DTI=Low, STIA=Low")))
    
    (assert (defense-action
@@ -332,7 +332,7 @@
       (priority "CRITICAL")
       (description (str-cat "Permanently isolate malicious node " ?nid ", remove from neighbor table"))))
    
-   (printout t ">>> [FLSec-RPL] MALICIOUS Node Detected: " ?nid crlf))
+   (printout t ">>> [DIO-Suppression] MALICIOUS Node Detected: " ?nid crlf))
 
 
 ;;; R_FLSec_2: High DIO + Low DTI + Medium STIA = Quarantine
@@ -362,12 +362,12 @@
       (attack-type "DIO-Suppression-Quarantine")
       (node-id ?nid)
       (severity "HIGH")
-      (message (str-cat "FLSec-RPL: Node " ?nid " requires QUARANTINE - High DIO frequency, Low transaction interval, Medium Trickle aggregation"))
+      (message (str-cat "DIO Suppression: Node " ?nid " requires QUARANTINE - High DIO frequency, Low transaction interval, Medium Trickle aggregation"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-FLSec-2-Quarantine")
+      (rule-name "DIO-Suppression-Quarantine-Detection")
       (trigger-condition (str-cat "DIO_Counter=High AND DTI=Low AND STIA=Medium"))
       (conclusion "Aggressive_Weight = Quarantine (Requires Isolation for Observation)")
       (node-id ?nid)
@@ -376,7 +376,7 @@
    (assert (reason
       (attack-type "DIO-Suppression-Quarantine")
       (node-id ?nid)
-      (explanation "FLSec-RPL Fuzzy Logic: Node behavior is suspicious, requires isolation for further observation")
+      (explanation "DIO Suppression Detection: Node behavior is suspicious, requires isolation for further observation")
       (evidence "DIO_Counter=High, DTI=Low, STIA=Medium")))
    
    (assert (defense-action
@@ -386,7 +386,7 @@
       (priority "HIGH")
       (description (str-cat "Temporarily isolate suspicious node " ?nid ", monitor subsequent behavior"))))
    
-   (printout t ">>> [FLSec-RPL] QUARANTINE Required for Node: " ?nid crlf))
+   (printout t ">>> [DIO-Suppression] QUARANTINE Required for Node: " ?nid crlf))
 
 
 ;;; R_FLSec_3: Medium DIO + Medium DTI + Medium STIA = Normal
@@ -400,7 +400,7 @@
    
    ?step-counter <- (global-counter (counter-name "step-id") (value ?sid))
    
-   (not (inference-path (rule-name "R-FLSec-3-Normal") (node-id ?nid)))
+   (not (inference-path (rule-name "DIO-Behavior-Normal-Check") (node-id ?nid)))
    
    =>
    
@@ -409,13 +409,13 @@
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-FLSec-3-Normal")
+      (rule-name "DIO-Behavior-Normal-Check")
       (trigger-condition (str-cat "DIO_Counter=Medium AND DTI=Medium AND STIA=Medium"))
       (conclusion "Aggressive_Weight = Normal (Normal Node)")
       (node-id ?nid)
       (timestamp 0)))
    
-   (printout t ">>> [FLSec-RPL] NORMAL Node Identified: " ?nid crlf))
+   (printout t ">>> [DIO-Suppression] NORMAL Node Identified: " ?nid crlf))
 
 
 ;;; R_FLSec_4: Low DIO + Low DTI + Low STIA = Quarantine (Possibly Suppressed Node)
@@ -443,18 +443,18 @@
       (attack-type "DIO-Suppression-Victim")
       (node-id ?nid)
       (severity "MEDIUM")
-      (message (str-cat "FLSec-RPL: Node " ?nid " may be a VICTIM of DIO suppression attack"))
+      (message (str-cat "DIO Suppression: Node " ?nid " may be a VICTIM of DIO suppression attack"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-FLSec-4-Quarantine-Suppressed")
+      (rule-name "DIO-Suppression-Victim-Detection")
       (trigger-condition (str-cat "DIO_Counter=Low AND DTI=Low AND STIA=Low"))
       (conclusion "Node may be suppressed by malicious node, investigation required")
       (node-id ?nid)
       (timestamp 0)))
    
-   (printout t ">>> [FLSec-RPL] VICTIM (Possibly Suppressed): " ?nid crlf))
+   (printout t ">>> [DIO-Suppression] VICTIM (Possibly Suppressed): " ?nid crlf))
 
 
 ;;;============================================
@@ -472,7 +472,7 @@
    
    ?step-counter <- (global-counter (counter-name "step-id") (value ?sid))
    
-   (not (inference-path (rule-name "R-Jam-1-NoAttack") (node-id ?nid)))
+   (not (inference-path (rule-name "Jamming-Normal-Check") (node-id ?nid)))
    
    =>
    
@@ -481,7 +481,7 @@
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-Jam-1-NoAttack")
+      (rule-name "Jamming-Normal-Check")
       (trigger-condition "ETX=Low AND Retransmissions=Low")
       (conclusion "Jamming Index = NO ATTACK (No Jamming Attack Detected)")
       (node-id ?nid)
@@ -519,7 +519,7 @@
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-Jam-2-LowJamming")
+      (rule-name "Jamming-Low-Detection")
       (trigger-condition "ETX=Low AND Retransmissions=Medium")
       (conclusion "Jamming Index = LOW (Low Level Jamming)")
       (node-id ?nid)
@@ -565,7 +565,7 @@
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-Jam-3-HighJamming")
+      (rule-name "Jamming-High-Detection")
       (trigger-condition "ETX=High AND Retransmissions=High")
       (conclusion "Jamming Index = HIGH (Severe Jamming Attack)")
       (node-id ?nid)
@@ -619,12 +619,12 @@
       (attack-type "Sinkhole-Bidirectional")
       (node-id ?cid)
       (severity "MEDIUM")
-      (message (str-cat "PRBA: Suspicious bidirectional behavior detected - Node " ?cid " and " ?pid " pointing to each other"))
+      (message (str-cat "Sinkhole Detection: Suspicious bidirectional behavior detected - Node " ?cid " and " ?pid " pointing to each other"))
       (timestamp ?ts)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-PRBA-1-Bidirectional")
+      (rule-name "Sinkhole-Bidirectional-Detection")
       (trigger-condition (str-cat "Child(" ?cid ") -> Parent(" ?pid ") AND Parent -> Child exist simultaneously"))
       (conclusion "Suspicious behaviour detected - Possible Sinkhole attack")
       (node-id ?cid)
@@ -636,7 +636,7 @@
       (explanation "Parent and child nodes pointing to each other at the same time is a typical characteristic of Sinkhole attack")
       (evidence (str-cat "Detected bidirectional pointing behavior between node " ?cid " and " ?pid))))
    
-   (printout t ">>> [PRBA] Bidirectional Behavior Detected: " ?cid " <-> " ?pid crlf))
+   (printout t ">>> [Sinkhole] Bidirectional Behavior Detected: " ?cid " <-> " ?pid crlf))
 
 
 ;;; R_PRBA_2: Frequent Bidirectional Behavior
@@ -668,12 +668,12 @@
       (attack-type "Sinkhole-FrequentBidirectional")
       (node-id ?cid)
       (severity "HIGH")
-      (message (str-cat "PRBA: Node " ?cid " frequent bidirectional behavior count (" ?cnt ") exceeds threshold"))
+      (message (str-cat "Sinkhole Detection: Node " ?cid " frequent bidirectional behavior count (" ?cnt ") exceeds threshold"))
       (timestamp ?ts)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-PRBA-2-FrequentBidirectional")
+      (rule-name "Sinkhole-Frequent-Bidirectional")
       (trigger-condition (str-cat "Bidirectional_Count(" ?cnt ") > Threshold(5)"))
       (conclusion "Confirmed suspicious behavior - High probability of Sinkhole attack")
       (node-id ?cid)
@@ -692,7 +692,7 @@
       (priority "HIGH")
       (description (str-cat "Isolate suspicious node " ?cid " and verify its routing information"))))
    
-   (printout t ">>> [PRBA] Frequent Bidirectional Behavior Alert: " ?cid crlf))
+   (printout t ">>> [Sinkhole] Frequent Bidirectional Behavior Alert: " ?cid crlf))
 
 
 ;;; R_PRBA_3: Power Consumption Anomaly
@@ -721,12 +721,12 @@
       (attack-type "Sinkhole-PowerAnomaly")
       (node-id ?nid)
       (severity "MEDIUM")
-      (message (str-cat "PRBA: Node " ?nid " power consumption anomaly exceeds threshold"))
+      (message (str-cat "Sinkhole Detection: Node " ?nid " power consumption anomaly exceeds threshold"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-PRBA-3-PowerConsumption")
+      (rule-name "Sinkhole-Power-Anomaly")
       (trigger-condition (str-cat "PowerConsumption(" ?pwr ") > Threshold(" ?th ")"))
       (conclusion "Power anomaly - Node may be processing large amounts of malicious routing traffic")
       (node-id ?nid)
@@ -738,7 +738,7 @@
       (explanation "Abnormally high node power consumption, possibly due to Sinkhole attack causing traffic convergence")
       (evidence (str-cat "Power: " ?pwr ", Threshold: " ?th))))
    
-   (printout t ">>> [PRBA] Power Anomaly: " ?nid crlf))
+   (printout t ">>> [Sinkhole] Power Anomaly: " ?nid crlf))
 
 
 ;;;============================================
@@ -774,12 +774,12 @@
       (attack-type "SelectiveForwarding")
       (node-id ?nid)
       (severity "HIGH")
-      (message (str-cat "RF: Selective Forwarding attack detected - Node " ?nid " packet drop rate anomaly"))
+      (message (str-cat "Attack Detection: Selective Forwarding attack detected - Node " ?nid " packet drop rate anomaly"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-RF-1-SelectiveForwarding")
+      (rule-name "SelectiveForwarding-Detection")
       (trigger-condition (str-cat "PDRR(" ?rate ") > delta_PDRR(" ?th ")"))
       (conclusion "Send message (Selective Forwarding, NodeID) to Sink")
       (node-id ?nid)
@@ -798,7 +798,7 @@
       (priority "HIGH")
       (description (str-cat "Bypass node " ?nid " and re-plan routing path"))))
    
-   (printout t ">>> [RF] Selective Forwarding Attack: " ?nid crlf))
+   (printout t ">>> [Attack-Detection] Selective Forwarding Attack: " ?nid crlf))
 
 
 ;;; R_RF_2: DoS Attack Detection
@@ -833,12 +833,12 @@
       (attack-type "DoS")
       (node-id ?nid)
       (severity "CRITICAL")
-      (message (str-cat "RF: DoS attack detected - Node " ?nid " duplicate packet rate and forwarding rate anomaly"))
+      (message (str-cat "Attack Detection: DoS attack detected - Node " ?nid " duplicate packet rate and forwarding rate anomaly"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-RF-2-DoS")
+      (rule-name "DoS-Attack-Detection")
       (trigger-condition (str-cat "DPR(" ?dpr ") > delta_DPR AND PFR(" ?pfr ") > delta_PFR"))
       (conclusion "Send message (DoS attack, NodeID) to Sink")
       (node-id ?nid)
@@ -857,7 +857,7 @@
       (priority "CRITICAL")
       (description (str-cat "Apply strict rate limiting to node " ?nid " and notify Sink"))))
    
-   (printout t ">>> [RF] DoS Attack: " ?nid crlf))
+   (printout t ">>> [Attack-Detection] DoS Attack: " ?nid crlf))
 
 
 ;;; R_RF_3: Rank Attack Detection
@@ -892,12 +892,12 @@
       (attack-type "RankAttack")
       (node-id ?nid)
       (severity "HIGH")
-      (message (str-cat "RF: Rank Attack detected - Node " ?nid " Rank changed from " ?prev " to " ?curr " abnormally"))
+      (message (str-cat "Attack Detection: Rank Attack detected - Node " ?nid " Rank changed from " ?prev " to " ?curr " abnormally"))
       (timestamp ?ts)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-RF-3-RankAttack")
+      (rule-name "Rank-Attack-Detection")
       (trigger-condition (str-cat "Node-rank mismatch: " ?prev " -> " ?curr))
       (conclusion "Send message (Rank-attack, NodeID) to Sink")
       (node-id ?nid)
@@ -916,7 +916,7 @@
       (priority "HIGH")
       (description (str-cat "Verify the legitimacy of node " ?nid " Rank"))))
    
-   (printout t ">>> [RF] Rank Attack: " ?nid crlf))
+   (printout t ">>> [Attack-Detection] Rank Attack: " ?nid crlf))
 
 
 ;;;============================================
@@ -951,12 +951,12 @@
       (attack-type "XAI-Anomaly")
       (node-id ?nid)
       (severity "HIGH")
-      (message (str-cat "XAI: Node " ?nid " detected anomalous behavior pattern"))
+      (message (str-cat "Anomaly Detection: Node " ?nid " detected anomalous behavior pattern"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-XAI-1-Anomaly")
+      (rule-name "Anomaly-Pattern-Detection")
       (trigger-condition (str-cat "NPC<=1.62 AND NPC>0.08 AND NC>" ?nc " AND UDP_recv>" ?udp))
       (conclusion "Anomaly Detected")
       (node-id ?nid)
@@ -975,7 +975,7 @@
       (priority "MEDIUM")
       (description (str-cat "Enhance monitoring of node " ?nid " behavior pattern"))))
    
-   (printout t ">>> [XAI] Anomaly Detection: " ?nid crlf))
+   (printout t ">>> [Anomaly] Anomaly Detection: " ?nid crlf))
 
 
 ;;;============================================
@@ -995,7 +995,7 @@
    
    ?step-counter <- (global-counter (counter-name "step-id") (value ?sid))
    
-   (not (inference-path (rule-name "R-UVM-1-DIOFrequency") (node-id ?nid)))
+   (not (inference-path (rule-name "DIO-Frequency-Analysis") (node-id ?nid)))
    
    =>
    
@@ -1004,13 +1004,13 @@
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-UVM-1-DIOFrequency")
+      (rule-name "DIO-Frequency-Analysis")
       (trigger-condition (str-cat "DIO_Current(" ?curr ") > DIO_Previous(" ?prev ")"))
       (conclusion "Suspicious behavior (DIO Transaction Frequency Behavior)")
       (node-id ?nid)
       (timestamp 0)))
    
-   (printout t ">>> [UVM] DIO Frequency Anomaly: " ?nid crlf))
+   (printout t ">>> [Voting] DIO Frequency Anomaly: " ?nid crlf))
 
 
 ;;; R_UVM_2: Rank Harmony Behavior
@@ -1029,7 +1029,7 @@
    
    ?step-counter <- (global-counter (counter-name "step-id") (value ?sid))
    
-   (not (inference-path (rule-name "R-UVM-2-RankHarmony") (node-id ?nid)))
+   (not (inference-path (rule-name "Rank-Harmony-Check") (node-id ?nid)))
    
    =>
    
@@ -1038,13 +1038,13 @@
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-UVM-2-RankHarmony")
+      (rule-name "Rank-Harmony-Check")
       (trigger-condition (str-cat "NRP(" (abs (- ?pr ?nr)) ") > SRN(" (abs (- ?sr ?nr)) ") anomaly"))
       (conclusion "Suspicious behavior (Rank Harmony Behavior)")
       (node-id ?nid)
       (timestamp 0)))
    
-   (printout t ">>> [UVM] Rank Harmony Anomaly: " ?nid crlf))
+   (printout t ">>> [Voting] Rank Harmony Anomaly: " ?nid crlf))
 
 
 ;;; R_UVM_3: Voting Decision
@@ -1078,12 +1078,12 @@
       (attack-type "Sinkhole-UVM")
       (node-id ?nid)
       (severity "CRITICAL")
-      (message (str-cat "UVM: Node " ?nid " voting determined as Sinkhole attack"))
+      (message (str-cat "Voting Detection: Node " ?nid " voting determined as Sinkhole attack"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-UVM-3-VotingDecision")
+      (rule-name "Voting-Decision-Sinkhole")
       (trigger-condition (str-cat "Abnormal behaviors(" ?abn ")/Total rules(" ?total ") > 65%"))
       (conclusion "Determined as Sinkhole attack (Alert = True)")
       (node-id ?nid)
@@ -1102,7 +1102,7 @@
       (priority "CRITICAL")
       (description (str-cat "Immediately isolate Sinkhole attack node " ?nid))))
    
-   (printout t ">>> [UVM] Sinkhole Attack Confirmed: " ?nid crlf))
+   (printout t ">>> [Voting] Sinkhole Attack Confirmed: " ?nid crlf))
 
 
 ;;;============================================
@@ -1150,12 +1150,12 @@
       (attack-type "HelloFlood")
       (node-id ?nid)
       (severity "HIGH")
-      (message (str-cat "Hybrid IDS: Node " ?nid " detected control message flooding - " ?attack-subtype))
+      (message (str-cat "Intrusion Detection: Node " ?nid " detected control message flooding - " ?attack-subtype))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-Hybrid-1-ControlMessageFlood")
+      (rule-name "HelloFlood-Detection")
       (trigger-condition (str-cat "DIO(" ?dio ")>T(" ?dio-th ") OR DIS(" ?dis ")>T(" ?dis-th ") OR DAO(" ?dao ")>T(" ?dao-th ")"))
       (conclusion (str-cat "Generate alert: " ?attack-subtype))
       (node-id ?nid)
@@ -1174,7 +1174,7 @@
       (priority "HIGH")
       (description (str-cat "Apply control message rate limiting to node " ?nid))))
    
-   (printout t ">>> [HYBRID] Control Message Flooding: " ?nid crlf))
+   (printout t ">>> [IDS] Control Message Flooding: " ?nid crlf))
 
 
 ;;; R_Hybrid_2: Version Number Attack
@@ -1206,12 +1206,12 @@
       (attack-type "VersionNumber")
       (node-id ?nid)
       (severity "HIGH")
-      (message (str-cat "Hybrid IDS: Node " ?nid " version number changed from " ?prev " to " ?curr " abnormally"))
+      (message (str-cat "Intrusion Detection: Node " ?nid " version number changed from " ?prev " to " ?curr " abnormally"))
       (timestamp ?ts)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-Hybrid-2-VersionNumber")
+      (rule-name "VersionNumber-Attack-Detection")
       (trigger-condition (str-cat "Received_Version(" ?curr ") > Current_Version(" ?prev ")"))
       (conclusion "Generate alert (Version Number Attack)")
       (node-id ?nid)
@@ -1230,7 +1230,7 @@
       (priority "HIGH")
       (description (str-cat "Verify node " ?nid " version number legitimacy, resync from Root if necessary"))))
    
-   (printout t ">>> [HYBRID] Version Number Attack: " ?nid crlf))
+   (printout t ">>> [IDS] Version Number Attack: " ?nid crlf))
 
 
 ;;; R_Hybrid_3: Rank Decrease Attack
@@ -1266,12 +1266,12 @@
       (attack-type "RankDecrease")
       (node-id ?nid)
       (severity "HIGH")
-      (message (str-cat "Hybrid IDS: Node " ?nid " Rank(" ?recv ") abnormally lower than neighbor average"))
+      (message (str-cat "Intrusion Detection: Node " ?nid " Rank(" ?recv ") abnormally lower than neighbor average"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-Hybrid-3-RankDecrease")
+      (rule-name "RankDecrease-Attack-Detection")
       (trigger-condition (str-cat "Rank(" ?recv ") < (AvgRank(" ?avg ") - MaxRank(" ?max ") * K(" ?k "))"))
       (conclusion "Node is attacker (Rank Decrease Attack)")
       (node-id ?nid)
@@ -1290,7 +1290,7 @@
       (priority "HIGH")
       (description (str-cat "Isolate Rank attack node " ?nid))))
    
-   (printout t ">>> [HYBRID] Rank Decrease Attack: " ?nid crlf))
+   (printout t ">>> [IDS] Rank Decrease Attack: " ?nid crlf))
 
 
 ;;;============================================
@@ -1329,12 +1329,12 @@
       (attack-type "SRPL-Malicious")
       (node-id ?nid)
       (severity "CRITICAL")
-      (message (str-cat "SRPL-RP: Node " ?nid " NCR(" ?ncr ") < NPR(" ?npr "), identified as MALICIOUS"))
+      (message (str-cat "Rank Violation: Node " ?nid " NCR(" ?ncr ") < NPR(" ?npr "), identified as MALICIOUS"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-SRPL-1-ParentChildRank")
+      (rule-name "ParentChild-Rank-Violation")
       (trigger-condition (str-cat "NCR(" ?ncr ") < NPR(" ?npr ")"))
       (conclusion "Malicious node, block permanently")
       (node-id ?nid)
@@ -1353,7 +1353,7 @@
       (priority "CRITICAL")
       (description (str-cat "Permanently block malicious node " ?nid))))
    
-   (printout t ">>> [SRPL-RP] Malicious Node (Parent-Child Rank): " ?nid crlf))
+   (printout t ">>> [Rank-Check] Malicious Node (Parent-Child Rank): " ?nid crlf))
 
 
 ;;; R_SRPL_2: Rank Decrease Check
@@ -1389,12 +1389,12 @@
       (attack-type "SRPL-RankDecrease")
       (node-id ?nid)
       (severity "CRITICAL")
-      (message (str-cat "SRPL-RP: Node " ?nid " Rank abnormally decreased, identified as MALICIOUS"))
+      (message (str-cat "Rank Violation: Node " ?nid " Rank abnormally decreased, identified as MALICIOUS"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-SRPL-2-RankDecreaseCheck")
+      (rule-name "Abnormal-Rank-Decrease")
       (trigger-condition (str-cat "NCR(" ?ncr ") < NOR(" ?nor ") AND NCR < (MSR(" ?msr ") - PST(" ?pst "))"))
       (conclusion "Malicious node, block permanently")
       (node-id ?nid)
@@ -1413,7 +1413,7 @@
       (priority "CRITICAL")
       (description (str-cat "Permanently block Rank decrease attack node " ?nid))))
    
-   (printout t ">>> [SRPL-RP] Rank Decrease Attack: " ?nid crlf))
+   (printout t ">>> [Rank-Check] Rank Decrease Attack: " ?nid crlf))
 
 
 ;;; R_SRPL_3: Rank Increase Check
@@ -1448,12 +1448,12 @@
       (attack-type "SRPL-RankIncrease")
       (node-id ?nid)
       (severity "HIGH")
-      (message (str-cat "SRPL-RP: Node " ?nid " Rank abnormally increased, temporarily blocked"))
+      (message (str-cat "Rank Violation: Node " ?nid " Rank abnormally increased, temporarily blocked"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-SRPL-3-RankIncreaseCheck")
+      (rule-name "Abnormal-Rank-Increase")
       (trigger-condition (str-cat "NCR(" ?ncr ") > NOR(" ?nor ") AND NCR >= MCR(" ?mcr ")"))
       (conclusion "Malicious node, block temporarily")
       (node-id ?nid)
@@ -1472,7 +1472,7 @@
       (priority "HIGH")
       (description (str-cat "Temporarily block suspicious node " ?nid ", observe subsequent behavior"))))
    
-   (printout t ">>> [SRPL-RP] Rank Increase Attack: " ?nid crlf))
+   (printout t ">>> [Rank-Check] Rank Increase Attack: " ?nid crlf))
 
 
 ;;;============================================
@@ -1505,7 +1505,7 @@
       (threshold ?th)
       (time-window 30)))
    
-   (printout t ">>> [DIST-IDS] Rank Deviation: " ?nid ", Violation Count: " (+ ?cnt 1) crlf))
+   (printout t ">>> [IDS] Rank Deviation: " ?nid ", Violation Count: " (+ ?cnt 1) crlf))
 
 
 ;;; R_Dist_2: Violation Threshold Exceeded
@@ -1541,7 +1541,7 @@
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-Dist-2-ViolationThreshold")
+      (rule-name "Security-Violation-Threshold")
       (trigger-condition (str-cat "Violation_Counter(" ?cnt ") >= Threshold(" ?th ")"))
       (conclusion "Isolate the parent")
       (node-id ?nid)
@@ -1560,7 +1560,7 @@
       (priority "HIGH")
       (description (str-cat "Isolate parent node " ?nid ", select alternate parent"))))
    
-   (printout t ">>> [DIST-IDS] Isolate Node: " ?nid crlf))
+   (printout t ">>> [IDS] Isolate Node: " ?nid crlf))
 
 
 ;;;============================================
@@ -1604,12 +1604,12 @@
       (attack-type "Sybil")
       (node-id ?nid)
       (severity "CRITICAL")
-      (message (str-cat "FLBT-RPL: Node " ?nid " detected Sybil attack"))
+      (message (str-cat "Sybil Detection: Node " ?nid " detected Sybil attack"))
       (timestamp 0)))
    
    (assert (inference-path
       (step-id (+ ?sid 1))
-      (rule-name "R-FLBT-1-SybilDetection")
+      (rule-name "Sybil-Attack-Detection")
       (trigger-condition "ICS>=theta OR SCS>=theta OR RES>=theta OR RMS>=theta OR BIS>=theta OR TDS>=theta")
       (conclusion "Attack Node = True (Sybil attack node detected)")
       (node-id ?nid)
@@ -1628,7 +1628,7 @@
       (priority "CRITICAL")
       (description (str-cat "Block all identities of node " ?nid ", verify physical node"))))
    
-   (printout t ">>> [FLBT-RPL] Sybil Attack: " ?nid crlf))
+   (printout t ">>> [Sybil] Sybil Attack: " ?nid crlf))
 
 
 ;;;============================================

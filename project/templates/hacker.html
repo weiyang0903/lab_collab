@@ -103,31 +103,176 @@
                         <div class="form-group">
                             <label><i class="fas fa-bug"></i> Attack Type</label>
                             <select id="attack-type" onchange="updateAttackParams()">
-                                <option value="Sinkhole">Sinkhole Attack - RPL Rank Forgery</option>
-                                <option value="HelloFlood">Hello Flood Attack - DIS Message Flooding</option>
-                                <option value="VersionNumber">Version Number Attack - DODAG Rebuild</option>
-                                <option value="SelectiveForwarding">Selective Forwarding Attack</option>
-                                <option value="Sybil">Sybil Attack - Multiple Identity Forgery</option>
-                                <option value="Wormhole">Wormhole Attack - Tunnel Creation</option>
+                                <optgroup label="📡 DIO/Control Message Attacks">
+                                    <option value="DIO-Suppression">DIO Suppression Attack</option>
+                                    <option value="HelloFlood">Hello Flood Attack</option>
+                                    <option value="VersionNumber">Version Number Attack</option>
+                                </optgroup>
+                                <optgroup label="📊 Rank Manipulation Attacks">
+                                    <option value="Sinkhole">Sinkhole Attack</option>
+                                    <option value="RankAttack">Rank Attack</option>
+                                    <option value="RankDecrease">Rank Decrease Attack</option>
+                                    <option value="SRPL-Malicious">SRPL Malicious Node</option>
+                                    <option value="SRPL-RankDecrease">SRPL Rank Decrease</option>
+                                    <option value="SRPL-RankIncrease">SRPL Rank Increase</option>
+                                </optgroup>
+                                <optgroup label="🔥 DoS & Forwarding Attacks">
+                                    <option value="DoS">DoS Attack</option>
+                                    <option value="SelectiveForwarding">Selective Forwarding</option>
+                                    <option value="Jamming">Jamming Attack</option>
+                                </optgroup>
+                                <optgroup label="🎭 Identity & Behavior Attacks">
+                                    <option value="Sybil">Sybil Attack</option>
+                                    <option value="Sinkhole-Bidirectional">Sinkhole Bidirectional</option>
+                                    <option value="Sinkhole-UVM">Sinkhole UVM Voting</option>
+                                </optgroup>
+                                <optgroup label="🔍 Anomaly Detection">
+                                    <option value="XAI-Anomaly">XAI Anomaly Detection</option>
+                                    <option value="Dist-IDS-Violation">Distributed IDS Violation</option>
+                                </optgroup>
                             </select>
                         </div>
                         <div id="attack-params" class="attack-params">
                             <h4><i class="fas fa-sliders-h"></i> Attack Parameters</h4>
-                            <div class="param-row" id="sinkhole-params">
+                            <!-- DIO-Suppression params - DEFAULT SHOWN -->
+                            <!-- Valid combinations from FLSec-RPL rules -->
+                            <div id="dio-suppression-params">
+                                <div class="param-row">
+                                    <div class="form-group"><label>DIO Counter Level</label><select id="dio-level"><option value="High" selected>High (Excessive DIO)</option><option value="Medium">Medium (Normal)</option><option value="Low">Low (Suppressed)</option></select></div>
+                                    <div class="form-group"><label>DTI (Interval) Level</label><select id="dti-level"><option value="Low" selected>Low (Short Interval)</option><option value="Medium">Medium (Normal)</option><option value="High">High (Long Interval)</option></select></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>STIA Level</label><select id="stia-level"><option value="Low" selected>Low (Aggressive)</option><option value="Medium">Medium (Suspicious)</option><option value="High">High (Normal)</option></select></div>
+                                </div>
+                                <div style="margin-top: 0.5rem; padding: 0.75rem; background: rgba(52,152,219,0.15); border: 1px solid rgba(52,152,219,0.3); border-radius: 6px; font-size: 0.8rem;">
+                                    <div style="color: #3498db; font-weight: bold; margin-bottom: 0.5rem;"><i class="fas fa-info-circle"></i> Valid Detection Combinations:</div>
+                                    <div style="color: #ecf0f1; line-height: 1.6;">
+                                        <span style="color: #e74c3c;">● High + Low + Low → MALICIOUS</span> (Block Permanently)<br>
+                                        <span style="color: #f39c12;">● High + Low + Medium → QUARANTINE</span> (Isolate & Monitor)<br>
+                                        <span style="color: #9b59b6;">● Low + Low + Low → VICTIM</span> (Possibly Suppressed)<br>
+                                        <span style="color: #2ecc71;">● Medium + Medium + Medium → NORMAL</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Sinkhole params -->
+                            <div class="param-row" id="sinkhole-params" style="display:none;">
                                 <div class="form-group"><label>Original Rank Value</label><input type="number" id="prev-rank" value="150" min="50" max="500"></div>
-                                <div class="form-group"><label>Forged Rank Value</label><input type="number" id="curr-rank" value="1" min="1" max="10"></div>
+                                <div class="form-group"><label>Forged Rank Value</label><input type="number" id="curr-rank" value="1" min="1" max="100"></div>
                             </div>
-                            <div class="param-row" id="hello-params" style="display:none;">
-                                <div class="form-group"><label>Hello Packet Count</label><input type="number" id="hello-count" value="25" min="21" max="100"></div>
+                            <!-- HelloFlood params -->
+                            <div id="hello-params" style="display:none;">
+                                <div class="param-row">
+                                    <div class="form-group"><label>DIO Message Count</label><input type="number" id="dio-count" value="50" min="21" max="200"></div>
+                                    <div class="form-group"><label>DIS Message Count</label><input type="number" id="dis-count" value="30" min="16" max="100"></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>DAO Message Count</label><input type="number" id="dao-count" value="20" min="11" max="100"></div>
+                                </div>
                             </div>
+                            <!-- VersionNumber params -->
                             <div class="param-row" id="version-params" style="display:none;">
-                                <div class="form-group"><label>Original Version Number</label><input type="number" id="prev-version" value="5" min="1" max="50"></div>
-                                <div class="form-group"><label>Forged Version Number</label><input type="number" id="curr-version" value="15" min="10" max="100"></div>
+                                <div class="form-group"><label>Original Version</label><input type="number" id="prev-version" value="5" min="1" max="50"></div>
+                                <div class="form-group"><label>Forged Version</label><input type="number" id="curr-version" value="15" min="6" max="100"></div>
+                            </div>
+                            <!-- Jamming params -->
+                            <div id="jamming-params" style="display:none;">
+                                <div class="param-row">
+                                    <div class="form-group"><label>ETX Level</label><select id="etx-level"><option value="High" selected>High</option><option value="Medium">Medium</option><option value="Low">Low</option></select></div>
+                                    <div class="form-group"><label>Retransmission Level</label><select id="retrans-level"><option value="High" selected>High</option><option value="Medium">Medium</option><option value="Low">Low</option></select></div>
+                                </div>
+                            </div>
+                            <!-- SelectiveForwarding params -->
+                            <div class="param-row" id="selective-params" style="display:none;">
+                                <div class="form-group"><label>Packet Drop Rate</label><input type="number" id="drop-rate" value="0.35" min="0.21" max="1.0" step="0.05"></div>
+                                <div class="form-group"><label>Threshold</label><input type="number" id="drop-threshold" value="0.2" min="0.1" max="0.5" step="0.05"></div>
+                            </div>
+                            <!-- DoS params -->
+                            <div class="param-row" id="dos-params" style="display:none;">
+                                <div class="form-group"><label>Duplicate Packet Rate</label><input type="number" id="dpr" value="0.8" min="0.51" max="1.0" step="0.05"></div>
+                                <div class="form-group"><label>Forwarding Rate</label><input type="number" id="pfr" value="0.9" min="0.61" max="1.0" step="0.05"></div>
+                            </div>
+                            <!-- RankAttack params -->
+                            <div class="param-row" id="rankattack-params" style="display:none;">
+                                <div class="form-group"><label>Previous Rank</label><input type="number" id="ra-prev-rank" value="200" min="100" max="500"></div>
+                                <div class="form-group"><label>Current Rank</label><input type="number" id="ra-curr-rank" value="50" min="1" max="100"></div>
+                            </div>
+                            <!-- XAI-Anomaly params -->
+                            <div id="xai-params" style="display:none;">
+                                <div class="param-row">
+                                    <div class="form-group"><label>Parent Changes (NPC)</label><input type="number" id="npc" value="1.0" min="0" max="10" step="0.5"></div>
+                                    <div class="form-group"><label>Number of Children</label><input type="number" id="nc" value="2.0" min="0" max="20" step="0.5"></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>UDP Received Count</label><input type="number" id="udp-recv" value="15.0" min="0" max="100" step="1"></div>
+                                </div>
+                            </div>
+                            <!-- Sinkhole-UVM params -->
+                            <div class="param-row" id="uvm-params" style="display:none;">
+                                <div class="form-group"><label>Abnormal Rule Count</label><input type="number" id="abnormal-count" value="4" min="3" max="10"></div>
+                                <div class="form-group"><label>Total Rules</label><input type="number" id="total-rules" value="5" min="3" max="10"></div>
+                            </div>
+                            <!-- RankDecrease params -->
+                            <div id="rankdecrease-params" style="display:none;">
+                                <div class="param-row">
+                                    <div class="form-group"><label>Received Rank</label><input type="number" id="recv-rank" value="50" min="1" max="200"></div>
+                                    <div class="form-group"><label>Avg Neighbor Rank</label><input type="number" id="avg-rank" value="200" min="100" max="500"></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>Max Neighbor Rank</label><input type="number" id="max-rank" value="300" min="100" max="500"></div>
+                                    <div class="form-group"><label>K Factor</label><input type="number" id="k-factor" value="0.3" min="0.1" max="1.0" step="0.1"></div>
+                                </div>
+                            </div>
+                            <!-- SRPL-Malicious params -->
+                            <div class="param-row" id="srpl-malicious-params" style="display:none;">
+                                <div class="form-group"><label>Node Current Rank (NCR)</label><input type="number" id="srpl-ncr" value="100" min="50" max="300"></div>
+                                <div class="form-group"><label>Node Parent Rank (NPR)</label><input type="number" id="srpl-npr" value="150" min="100" max="400"></div>
+                            </div>
+                            <!-- SRPL-RankDecrease params -->
+                            <div id="srpl-decrease-params" style="display:none;">
+                                <div class="param-row">
+                                    <div class="form-group"><label>Current Rank (NCR)</label><input type="number" id="srpl-dec-ncr" value="80" min="1" max="200"></div>
+                                    <div class="form-group"><label>Old Rank (NOR)</label><input type="number" id="srpl-dec-nor" value="150" min="100" max="300"></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>Min Sibling Rank (MSR)</label><input type="number" id="srpl-dec-msr" value="120" min="50" max="300"></div>
+                                    <div class="form-group"><label>Parent Switch Threshold</label><input type="number" id="srpl-dec-pst" value="20" min="5" max="50"></div>
+                                </div>
+                            </div>
+                            <!-- SRPL-RankIncrease params -->
+                            <div id="srpl-increase-params" style="display:none;">
+                                <div class="param-row">
+                                    <div class="form-group"><label>Current Rank (NCR)</label><input type="number" id="srpl-inc-ncr" value="200" min="150" max="400"></div>
+                                    <div class="form-group"><label>Old Rank (NOR)</label><input type="number" id="srpl-inc-nor" value="150" min="50" max="300"></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>Min Child Rank (MCR)</label><input type="number" id="srpl-inc-mcr" value="180" min="100" max="350"></div>
+                                </div>
+                            </div>
+                            <!-- Sinkhole-Bidirectional params -->
+                            <div class="param-row" id="bidirectional-params" style="display:none;">
+                                <div class="form-group"><label>Parent Node ID</label><input type="text" id="parent-id" value="parent-001"></div>
+                                <div class="form-group"><label>Behavior Count</label><input type="number" id="bid-count" value="6" min="4" max="20"></div>
+                            </div>
+                            <!-- Sybil params -->
+                            <div id="sybil-params" style="display:none;">
+                                <div class="param-row">
+                                    <div class="form-group"><label>Identity Score (ICS)</label><input type="number" id="ics" value="0.9" min="0.71" max="1.0" step="0.05"></div>
+                                    <div class="form-group"><label>Signal Score (SCS)</label><input type="number" id="scs" value="0.8" min="0.71" max="1.0" step="0.05"></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>Resource Score (RES)</label><input type="number" id="res" value="0.7" min="0.71" max="1.0" step="0.05"></div>
+                                    <div class="form-group"><label>Rank Manipulation (RMS)</label><input type="number" id="rms" value="0.85" min="0.71" max="1.0" step="0.05"></div>
+                                </div>
+                            </div>
+                            <!-- Dist-IDS-Violation params -->
+                            <div class="param-row" id="dist-ids-params" style="display:none;">
+                                <div class="form-group"><label>Violation Count</label><input type="number" id="violation-count" value="6" min="1" max="20"></div>
+                                <div class="form-group"><label>Threshold</label><input type="number" id="violation-threshold" value="5" min="1" max="15"></div>
                             </div>
                         </div>
                         <div id="attack-desc" class="attack-desc">
-                            <h5><i class="fas fa-info-circle"></i> Sinkhole Attack Description</h5>
-                            <p>The attacker forges an extremely low Rank value (e.g., 1), making itself appear as the optimal path to the DODAG Root, thereby attracting and intercepting network traffic.</p>
+                            <h5><i class="fas fa-info-circle"></i> DIO Suppression Attack</h5>
+                            <p>Attacker sends excessive DIO messages with very short intervals to suppress neighbor nodes, disrupting the Trickle algorithm. Detection uses Fuzzy Logic with DIO Counter, DTI, and STIA indicators.</p>
                         </div>
                         <button type="button" id="btn-launch" class="btn-launch" onclick="launchAttack()"><i class="fas fa-bolt"></i> Launch Attack</button>
                     </form>
@@ -158,23 +303,65 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script>
+        /* Attack descriptions - literature references kept as comments only:
+         * DIO-Suppression: FLSec-RPL [2], Sinkhole: PRBA [7-9], HelloFlood/VersionNumber/RankDecrease: Hybrid IDS [18-21]
+         * SelectiveForwarding/DoS/RankAttack: RF [10], XAI-Anomaly: [11,13], Sinkhole-UVM: UVM [14-17]
+         * SRPL-*: SRPL-RP [22,24], Sybil: FLBT-RPL [28], Dist-IDS: [25,26], Jamming: [4,5]
+         */
         const attackDescriptions = {
-            'Sinkhole': { title: 'Sinkhole Attack Description', desc: 'The attacker forges an extremely low Rank value (e.g., 1), making itself appear as the optimal path to the DODAG Root, thereby attracting and intercepting network traffic.' },
-            'HelloFlood': { title: 'Hello Flood Attack Description', desc: 'The attacker broadcasts a large number of DIS (DODAG Information Solicitation) messages, consuming network bandwidth and node energy, causing network congestion.' },
-            'VersionNumber': { title: 'Version Number Attack Description', desc: 'The attacker forges an abnormally high DODAG Version Number, forcing the entire network to rebuild routing topology, consuming significant resources.' },
-            'SelectiveForwarding': { title: 'Selective Forwarding Attack Description', desc: 'A malicious node selectively drops certain packets while forwarding others, making it difficult to detect.' },
-            'Sybil': { title: 'Sybil Attack Description', desc: 'The attacker creates multiple fake identities, interfering with routing decisions and network trust mechanisms.' },
-            'Wormhole': { title: 'Wormhole Attack Description', desc: 'Two malicious nodes rapidly transmit packets through a private tunnel, disrupting the distance metrics of the routing protocol.' }
+            'DIO-Suppression': { title: 'DIO Suppression Attack', desc: 'Attacker sends excessive DIO messages with very short intervals to suppress neighbor nodes, disrupting the Trickle algorithm. Detection uses Fuzzy Logic with DIO Counter, DTI, and STIA indicators.' },
+            'Sinkhole': { title: 'Sinkhole Attack', desc: 'The attacker forges an extremely low Rank value (e.g., 1), making itself appear as the optimal path to the DODAG Root, thereby attracting and intercepting network traffic.' },
+            'HelloFlood': { title: 'Hello Flood Attack', desc: 'The attacker broadcasts excessive DIO/DIS/DAO control messages, consuming network bandwidth and node energy, causing network congestion and resource exhaustion.' },
+            'VersionNumber': { title: 'Version Number Attack', desc: 'The attacker forges an abnormally high DODAG Version Number, forcing the entire network to rebuild routing topology, consuming significant resources.' },
+            'SelectiveForwarding': { title: 'Selective Forwarding Attack', desc: 'A malicious node selectively drops certain packets while forwarding others, making it difficult to detect. Detected by monitoring packet drop rate.' },
+            'Sybil': { title: 'Sybil Attack', desc: 'The attacker creates multiple fake identities using various indicators: Identity Consistency, Signal Consistency, Resource usage, Rank Manipulation, and Behavior patterns.' },
+            'Jamming': { title: 'Jamming Attack', desc: 'Attacker interferes with wireless signals causing high ETX (Expected Transmission Count) and excessive retransmissions, degrading network performance.' },
+            'DoS': { title: 'DoS Attack', desc: 'Denial of Service attack detected through abnormal duplicate packet rate (DPR) and packet forwarding rate (PFR), indicating flooding behavior.' },
+            'RankAttack': { title: 'Rank Attack', desc: 'Malicious manipulation of Rank values detected through significant Rank value changes beyond normal thresholds.' },
+            'XAI-Anomaly': { title: 'Anomaly Detection', desc: 'Detects anomalous behavior patterns including unusual parent changes, children count, and UDP traffic patterns.' },
+            'Sinkhole-UVM': { title: 'Sinkhole Attack (Voting)', desc: 'Uses multiple detection rules to vote on whether a node is malicious. Attack confirmed when abnormal count exceeds threshold.' },
+            'RankDecrease': { title: 'Rank Decrease Attack', desc: 'Detects suspicious Rank decrease by comparing received Rank with average and maximum neighbor Ranks using k-factor threshold.' },
+            'SRPL-Malicious': { title: 'Malicious Node Detection', desc: 'Detects Parent-Child Rank violation where node current Rank (NCR) should not be less than parent Rank (NPR). Violators are permanently blocked.' },
+            'SRPL-RankDecrease': { title: 'Rank Decrease Attack', desc: 'Detects abnormal Rank decrease where current Rank drops significantly below old Rank and minimum sibling Rank, beyond parent switch threshold.' },
+            'SRPL-RankIncrease': { title: 'Rank Increase Attack', desc: 'Detects abnormal Rank increase where current Rank exceeds old Rank and minimum child Rank, indicating potential manipulation.' },
+            'Sinkhole-Bidirectional': { title: 'Sinkhole Bidirectional Attack', desc: 'Detects Sinkhole through bidirectional traffic patterns between child and parent nodes. High count indicates traffic interception.' },
+            'Dist-IDS-Violation': { title: 'Security Violation Alert', desc: 'Distributed intrusion detection system tracks rule violations across network. Alert triggered when violation count exceeds threshold within time window.' }
         };
         
         function updateAttackParams() {
             const attackType = document.getElementById('attack-type').value;
-            document.getElementById('sinkhole-params').style.display = 'none';
-            document.getElementById('hello-params').style.display = 'none';
-            document.getElementById('version-params').style.display = 'none';
-            if (attackType === 'Sinkhole') document.getElementById('sinkhole-params').style.display = 'grid';
-            else if (attackType === 'HelloFlood') document.getElementById('hello-params').style.display = 'grid';
-            else if (attackType === 'VersionNumber') document.getElementById('version-params').style.display = 'grid';
+            // Hide all param sections
+            const paramSections = ['dio-suppression-params', 'sinkhole-params', 'hello-params', 'version-params', 
+                'jamming-params', 'selective-params', 'dos-params', 'rankattack-params', 'xai-params', 
+                'uvm-params', 'rankdecrease-params', 'srpl-malicious-params', 'srpl-decrease-params', 
+                'srpl-increase-params', 'bidirectional-params', 'sybil-params', 'dist-ids-params'];
+            paramSections.forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
+            
+            // Show relevant params
+            const paramMap = {
+                'DIO-Suppression': 'dio-suppression-params',
+                'Sinkhole': 'sinkhole-params',
+                'HelloFlood': 'hello-params',
+                'VersionNumber': 'version-params',
+                'Jamming': 'jamming-params',
+                'SelectiveForwarding': 'selective-params',
+                'DoS': 'dos-params',
+                'RankAttack': 'rankattack-params',
+                'XAI-Anomaly': 'xai-params',
+                'Sinkhole-UVM': 'uvm-params',
+                'RankDecrease': 'rankdecrease-params',
+                'SRPL-Malicious': 'srpl-malicious-params',
+                'SRPL-RankDecrease': 'srpl-decrease-params',
+                'SRPL-RankIncrease': 'srpl-increase-params',
+                'Sinkhole-Bidirectional': 'bidirectional-params',
+                'Sybil': 'sybil-params',
+                'Dist-IDS-Violation': 'dist-ids-params'
+            };
+            if (paramMap[attackType]) {
+                const el = document.getElementById(paramMap[attackType]);
+                if(el) el.style.display = 'block';
+            }
+            
             const desc = attackDescriptions[attackType] || { title: 'Attack Description', desc: 'No description available' };
             document.getElementById('attack-desc').innerHTML = `<h5><i class="fas fa-info-circle"></i> ${desc.title}</h5><p>${desc.desc}</p>`;
             addConsoleLog(`Selected attack type: ${attackType}`, 'info');
@@ -188,9 +375,71 @@
             const sourceNode = document.getElementById('source-node').value;
             const targetNode = document.getElementById('target-node').value;
             const requestBody = { attack_type: attackType, source: sourceNode, target: targetNode };
-            if (attackType === 'Sinkhole') { requestBody.prev_rank = parseInt(document.getElementById('prev-rank').value); requestBody.curr_rank = parseInt(document.getElementById('curr-rank').value); }
-            else if (attackType === 'HelloFlood') { requestBody.hello_count = parseInt(document.getElementById('hello-count').value); }
-            else if (attackType === 'VersionNumber') { requestBody.prev_version = parseInt(document.getElementById('prev-version').value); requestBody.curr_version = parseInt(document.getElementById('curr-version').value); }
+            
+            // Collect parameters based on attack type
+            if (attackType === 'DIO-Suppression') {
+                requestBody.dio_level = document.getElementById('dio-level').value;
+                requestBody.dti_level = document.getElementById('dti-level').value;
+                requestBody.stia_level = document.getElementById('stia-level').value;
+            } else if (attackType === 'Sinkhole') {
+                requestBody.prev_rank = parseInt(document.getElementById('prev-rank').value);
+                requestBody.curr_rank = parseInt(document.getElementById('curr-rank').value);
+            } else if (attackType === 'HelloFlood') {
+                requestBody.dio_count = parseInt(document.getElementById('dio-count').value);
+                requestBody.dis_count = parseInt(document.getElementById('dis-count').value);
+                requestBody.dao_count = parseInt(document.getElementById('dao-count').value);
+            } else if (attackType === 'VersionNumber') {
+                requestBody.prev_version = parseInt(document.getElementById('prev-version').value);
+                requestBody.curr_version = parseInt(document.getElementById('curr-version').value);
+            } else if (attackType === 'Jamming') {
+                requestBody.etx_level = document.getElementById('etx-level').value;
+                requestBody.retrans_level = document.getElementById('retrans-level').value;
+            } else if (attackType === 'SelectiveForwarding') {
+                requestBody.drop_rate = parseFloat(document.getElementById('drop-rate').value);
+                requestBody.threshold = parseFloat(document.getElementById('drop-threshold').value);
+            } else if (attackType === 'DoS') {
+                requestBody.dpr = parseFloat(document.getElementById('dpr').value);
+                requestBody.pfr = parseFloat(document.getElementById('pfr').value);
+            } else if (attackType === 'RankAttack') {
+                requestBody.prev_rank = parseInt(document.getElementById('ra-prev-rank').value);
+                requestBody.curr_rank = parseInt(document.getElementById('ra-curr-rank').value);
+            } else if (attackType === 'XAI-Anomaly') {
+                requestBody.npc = parseFloat(document.getElementById('npc').value);
+                requestBody.nc = parseFloat(document.getElementById('nc').value);
+                requestBody.udp_recv = parseFloat(document.getElementById('udp-recv').value);
+            } else if (attackType === 'Sinkhole-UVM') {
+                requestBody.abnormal_count = parseInt(document.getElementById('abnormal-count').value);
+                requestBody.total_rules = parseInt(document.getElementById('total-rules').value);
+            } else if (attackType === 'RankDecrease') {
+                requestBody.recv_rank = parseInt(document.getElementById('recv-rank').value);
+                requestBody.avg_rank = parseInt(document.getElementById('avg-rank').value);
+                requestBody.max_rank = parseInt(document.getElementById('max-rank').value);
+                requestBody.k_factor = parseFloat(document.getElementById('k-factor').value);
+            } else if (attackType === 'SRPL-Malicious') {
+                requestBody.ncr = parseInt(document.getElementById('srpl-ncr').value);
+                requestBody.npr = parseInt(document.getElementById('srpl-npr').value);
+            } else if (attackType === 'SRPL-RankDecrease') {
+                requestBody.ncr = parseInt(document.getElementById('srpl-dec-ncr').value);
+                requestBody.nor = parseInt(document.getElementById('srpl-dec-nor').value);
+                requestBody.msr = parseInt(document.getElementById('srpl-dec-msr').value);
+                requestBody.pst = parseInt(document.getElementById('srpl-dec-pst').value);
+            } else if (attackType === 'SRPL-RankIncrease') {
+                requestBody.ncr = parseInt(document.getElementById('srpl-inc-ncr').value);
+                requestBody.nor = parseInt(document.getElementById('srpl-inc-nor').value);
+                requestBody.mcr = parseInt(document.getElementById('srpl-inc-mcr').value);
+            } else if (attackType === 'Sinkhole-Bidirectional') {
+                requestBody.parent_id = document.getElementById('parent-id').value;
+                requestBody.count = parseInt(document.getElementById('bid-count').value);
+            } else if (attackType === 'Sybil') {
+                requestBody.ics = parseFloat(document.getElementById('ics').value);
+                requestBody.scs = parseFloat(document.getElementById('scs').value);
+                requestBody.res = parseFloat(document.getElementById('res').value);
+                requestBody.rms = parseFloat(document.getElementById('rms').value);
+            } else if (attackType === 'Dist-IDS-Violation') {
+                requestBody.violation_count = parseInt(document.getElementById('violation-count').value);
+                requestBody.threshold = parseInt(document.getElementById('violation-threshold').value);
+            }
+            
             addConsoleLog(`Launching ${attackType} attack...`);
             addConsoleLog(`Source: ${sourceNode} → Target: ${targetNode}`);
             fetch('/inject_attack', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) })
@@ -253,22 +502,41 @@
             console.scrollTop = console.scrollHeight;
         }
         
-        function loadTargetNodes() {
-            // Load nodes from localStorage (synced with topology editor)
-            const savedTopology = localStorage.getItem('iot-topology');
+        async function loadTargetNodes() {
+            // Load from server first for sync, fallback to localStorage
             const select = document.getElementById('target-node');
-            if (savedTopology) {
-                try {
-                    const topology = JSON.parse(savedTopology);
-                    select.innerHTML = topology.nodes.map(n => {
-                        const typeLabel = n.type ? `(${n.type.charAt(0).toUpperCase() + n.type.slice(1)})` : '';
-                        return `<option value="${n.id}">${n.id} ${typeLabel}</option>`;
-                    }).join('');
-                    addConsoleLog(`Loaded ${topology.nodes.length} target nodes from network topology`, 'info');
-                } catch (e) {
-                    console.error('Error loading topology:', e);
-                    addConsoleLog('Using default target nodes', 'info');
+            let topology = null;
+            
+            try {
+                const response = await fetch('/api/topology');
+                const data = await response.json();
+                if (data.success && data.topology && data.topology.nodes) {
+                    localStorage.setItem('iot-topology', JSON.stringify(data.topology));
+                    topology = data.topology;
+                    addConsoleLog(`Synced ${topology.nodes.length} target nodes from server`, 'info');
                 }
+            } catch (e) {
+                console.log('Hacker: Could not load from server, using localStorage');
+            }
+            
+            if (!topology) {
+                const savedTopology = localStorage.getItem('iot-topology');
+                if (savedTopology) {
+                    try {
+                        topology = JSON.parse(savedTopology);
+                        addConsoleLog(`Loaded ${topology.nodes.length} target nodes from local storage`, 'info');
+                    } catch (e) {
+                        console.error('Error loading topology:', e);
+                        addConsoleLog('Using default target nodes', 'info');
+                    }
+                }
+            }
+            
+            if (topology && topology.nodes) {
+                select.innerHTML = topology.nodes.map(n => {
+                    const typeLabel = n.type ? `(${n.type.charAt(0).toUpperCase() + n.type.slice(1)})` : '';
+                    return `<option value="${n.id}">${n.id} ${typeLabel}</option>`;
+                }).join('');
             }
         }
         
