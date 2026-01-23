@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT-Guardian - Security Diagnostic Report</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @media print { .no-print { display: none !important; } .report-container { box-shadow: none !important; } body { background: #fff !important; } }
+        .report-theme { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); min-height: 100vh; }
+        .report-container { max-width: 900px; margin: 2rem auto; background: #fff; box-shadow: 0 10px 50px rgba(0,0,0,0.15); border-radius: 8px; overflow: hidden; }
+        .report-header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; padding: 2.5rem 3rem; position: relative; overflow: hidden; }
+        .report-header::before { content: ''; position: absolute; top: 0; right: 0; width: 300px; height: 100%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 0L100 50L50 100L0 50Z' fill='rgba(255,255,255,0.03)'/%3E%3C/svg%3E") repeat; opacity: 0.5; }
+        .report-logo { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+        .report-logo i { font-size: 2.5rem; color: #2ecc71; }
+        .report-logo h1 { font-size: 1.8rem; font-weight: 700; }
+        .report-logo span { font-size: 0.85rem; color: #bdc3c7; display: block; }
+        .report-title { font-size: 2rem; margin-bottom: 0.5rem; }
+        .report-subtitle { color: #bdc3c7; font-size: 1rem; }
+        .report-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); }
+        .meta-item { text-align: center; }
+        .meta-label { font-size: 0.75rem; color: #7f8c8d; text-transform: uppercase; letter-spacing: 1px; }
+        .meta-value { font-size: 1.1rem; font-weight: bold; color: #fff; margin-top: 0.25rem; }
+        .report-body { padding: 3rem; color: #2c3e50; }
+        .report-section { margin-bottom: 2.5rem; }
+        .section-title { display: flex; align-items: center; gap: 0.75rem; font-size: 1.3rem; color: #1a1a2e; margin-bottom: 1.5rem; padding-bottom: 0.75rem; border-bottom: 2px solid #e9ecef; }
+        .section-title i { color: #3498db; }
+        .severity-banner { display: flex; align-items: center; justify-content: space-between; padding: 1.5rem 2rem; border-radius: 8px; margin-bottom: 2rem; }
+        .severity-banner.critical { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: #fff; }
+        .severity-banner.high { background: linear-gradient(135deg, #e67e22 0%, #d35400 100%); color: #fff; }
+        .severity-banner.medium { background: linear-gradient(135deg, #f39c12 0%, #f1c40f 100%); color: #000; }
+        .severity-banner.low { background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%); color: #fff; }
+        .severity-info h3 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+        .severity-info p { font-size: 0.9rem; opacity: 0.9; }
+        .severity-score { text-align: center; }
+        .severity-score .score { font-size: 3rem; font-weight: bold; }
+        .severity-score .label { font-size: 0.8rem; text-transform: uppercase; }
+        .detail-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; }
+        .detail-table th, .detail-table td { padding: 1rem; text-align: left; border-bottom: 1px solid #e9ecef; }
+        .detail-table th { background: #f8f9fa; font-weight: 600; color: #1a1a2e; width: 30%; }
+        .detail-table td { color: #34495e; }
+        .tag { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+        .tag.danger { background: #fadbd8; color: #c0392b; }
+        .tag.warning { background: #fdebd0; color: #d35400; }
+        .tag.success { background: #d4efdf; color: #27ae60; }
+        .tag.info { background: #d6eaf8; color: #2980b9; }
+        .timeline { position: relative; padding-left: 2rem; }
+        .timeline::before { content: ''; position: absolute; left: 0.5rem; top: 0; bottom: 0; width: 2px; background: #e9ecef; }
+        .timeline-item { position: relative; padding-bottom: 1.5rem; }
+        .timeline-item::before { content: ''; position: absolute; left: -1.55rem; top: 0.25rem; width: 12px; height: 12px; border-radius: 50%; background: #3498db; border: 2px solid #fff; box-shadow: 0 0 0 2px #3498db; }
+        .timeline-item.danger::before { background: #e74c3c; box-shadow: 0 0 0 2px #e74c3c; }
+        .timeline-item.warning::before { background: #f39c12; box-shadow: 0 0 0 2px #f39c12; }
+        .timeline-item.success::before { background: #27ae60; box-shadow: 0 0 0 2px #27ae60; }
+        .timeline-time { font-size: 0.8rem; color: #7f8c8d; margin-bottom: 0.25rem; }
+        .timeline-content { background: #f8f9fa; padding: 1rem; border-radius: 6px; }
+        .timeline-content h4 { color: #1a1a2e; margin-bottom: 0.5rem; }
+        .timeline-content p { font-size: 0.9rem; color: #7f8c8d; }
+        .inference-box { background: #f8f9fa; border-left: 4px solid #3498db; padding: 1.5rem; margin-bottom: 1rem; border-radius: 0 8px 8px 0; }
+        .inference-box h4 { color: #3498db; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+        .inference-box .rule-name { font-family: 'Consolas', monospace; background: rgba(52,152,219,0.1); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem; }
+        .inference-box p { color: #34495e; line-height: 1.6; }
+        .recommendation-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+        .recommendation-card { border: 1px solid #e9ecef; border-radius: 8px; padding: 1.25rem; transition: transform 0.3s ease; }
+        .recommendation-card:hover { transform: translateY(-3px); box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .recommendation-card.immediate { border-left: 4px solid #e74c3c; }
+        .recommendation-card.short-term { border-left: 4px solid #f39c12; }
+        .recommendation-card.long-term { border-left: 4px solid #3498db; }
+        .recommendation-card h4 { font-size: 1rem; color: #1a1a2e; margin-bottom: 0.5rem; }
+        .recommendation-card p { font-size: 0.85rem; color: #7f8c8d; line-height: 1.5; }
+        .recommendation-card .priority-tag { display: inline-block; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; margin-bottom: 0.75rem; }
+        .recommendation-card.immediate .priority-tag { background: #fadbd8; color: #c0392b; }
+        .recommendation-card.short-term .priority-tag { background: #fdebd0; color: #d35400; }
+        .recommendation-card.long-term .priority-tag { background: #d6eaf8; color: #2980b9; }
+        .report-footer { background: #f8f9fa; padding: 2rem 3rem; border-top: 1px solid #e9ecef; }
+        .footer-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; text-align: center; margin-bottom: 1.5rem; }
+        .footer-item { font-size: 0.85rem; color: #7f8c8d; }
+        .footer-item strong { display: block; color: #1a1a2e; margin-bottom: 0.25rem; }
+        .footer-disclaimer { text-align: center; font-size: 0.75rem; color: #95a5a6; padding-top: 1rem; border-top: 1px solid #e9ecef; }
+        .actions-bar { background: #1a1a2e; padding: 1rem 3rem; display: flex; justify-content: space-between; align-items: center; }
+        .actions-bar .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; transition: all 0.3s ease; }
+        .btn-print { background: #3498db; color: #fff; }
+        .btn-export { background: #27ae60; color: #fff; }
+        .btn-back { background: rgba(255,255,255,0.1); color: #fff; }
+        .btn:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body class="report-theme">
+    <div class="actions-bar no-print">
+        <a href="/" class="btn btn-back"><i class="fas fa-arrow-left"></i> Back to System</a>
+        <div>
+            <button class="btn btn-export" onclick="exportReport()"><i class="fas fa-file-export"></i> Export JSON</button>
+            <button class="btn btn-print" onclick="window.print()"><i class="fas fa-print"></i> Print Report</button>
+        </div>
+    </div>
+
+    <div class="report-container">
+        <header class="report-header">
+            <div class="report-logo"><i class="fas fa-shield-alt"></i><div><h1>IoT-Guardian</h1><span>IoT Security Expert System</span></div></div>
+            <h2 class="report-title">Security Incident Diagnostic Report</h2>
+            <p class="report-subtitle">RPL Protocol Attack Detection and Defense Analysis</p>
+            <div class="report-meta">
+                <div class="meta-item"><div class="meta-label">Report ID</div><div class="meta-value" id="report-id">IOT-2024-001</div></div>
+                <div class="meta-item"><div class="meta-label">Generated At</div><div class="meta-value" id="report-time">--</div></div>
+                <div class="meta-item"><div class="meta-label">System Version</div><div class="meta-value">v1.0.0</div></div>
+            </div>
+        </header>
+
+        <div class="report-body">
+            <div id="severity-banner" class="severity-banner critical">
+                <div class="severity-info"><h3>Severity Level: Critical</h3><p>RPL protocol attack detected, immediate response required</p></div>
+                <div class="severity-score"><div class="score">9.2</div><div class="label">Threat Score</div></div>
+            </div>
+
+            <section class="report-section">
+                <h3 class="section-title"><i class="fas fa-clipboard-list"></i> Executive Summary</h3>
+                <p id="executive-summary">This report is automatically generated by the IoT-Guardian expert system, based on CLIPS inference engine analysis of network traffic and node behavior. The system has detected attack activity targeting the RPL routing protocol, activated defense mechanisms, and generated corresponding mitigation recommendations.</p>
+            </section>
+
+            <section class="report-section">
+                <h3 class="section-title"><i class="fas fa-bug"></i> Attack Details</h3>
+                <table class="detail-table">
+                    <tr><th>Attack Type</th><td id="attack-type"><span class="tag danger">Sinkhole Attack</span></td></tr>
+                    <tr><th>Attack Source</th><td id="attack-source">malicious-node-001</td></tr>
+                    <tr><th>Target Node</th><td id="attack-target">sensor-001</td></tr>
+                    <tr><th>Detection Time</th><td id="attack-time">--</td></tr>
+                    <tr><th>Confidence</th><td id="attack-confidence">95%</td></tr>
+                    <tr><th>Impact Scope</th><td id="attack-scope">Local Network (3 nodes)</td></tr>
+                </table>
+            </section>
+
+            <section class="report-section">
+                <h3 class="section-title"><i class="fas fa-history"></i> Event Timeline</h3>
+                <div class="timeline" id="attack-timeline">
+                    <div class="timeline-item warning"><div class="timeline-time">T+0s</div><div class="timeline-content"><h4>Abnormal Rank Value Detected</h4><p>Node malicious-node-001 sent extremely low Rank value (1), original value was 150</p></div></div>
+                    <div class="timeline-item danger"><div class="timeline-time">T+50ms</div><div class="timeline-content"><h4>Sinkhole Attack Confirmed</h4><p>Expert system rule detect-sinkhole-attack-rank-drop triggered, confidence 95%</p></div></div>
+                    <div class="timeline-item success"><div class="timeline-time">T+100ms</div><div class="timeline-content"><h4>Defense Measures Activated</h4><p>Node isolation command sent, routing table update in progress</p></div></div>
+                </div>
+            </section>
+
+            <section class="report-section">
+                <h3 class="section-title"><i class="fas fa-brain"></i> Expert Reasoning Process</h3>
+                <div id="inference-paths">
+                    <div class="inference-box"><h4><i class="fas fa-project-diagram"></i> Inference Path #1</h4><p><strong>Rule:</strong> <span class="rule-name">detect-sinkhole-attack-rank-drop</span></p><p><strong>Trigger Condition:</strong> Node Rank value dropped from >100 to <=5</p><p><strong>Inference Conclusion:</strong> Sinkhole attack detected, malicious node attempting to attract network traffic</p></div>
+                    <div class="inference-box"><h4><i class="fas fa-lightbulb"></i> Reason Explanation</h4><p><strong>Explanation:</strong> A sudden Rank value drop is a typical characteristic of Sinkhole attacks. The attacker makes itself the optimal path by forging an extremely low Rank, thereby intercepting or dropping traffic.</p><p><strong>Evidence:</strong> rank-drop-150-to-1</p></div>
+                </div>
+            </section>
+
+            <section class="report-section">
+                <h3 class="section-title"><i class="fas fa-shield-alt"></i> Defense Recommendations</h3>
+                <div class="recommendation-grid" id="recommendations">
+                    <div class="recommendation-card immediate"><span class="priority-tag">Immediate Action</span><h4><i class="fas fa-ban"></i> Isolate Malicious Node</h4><p>Isolate malicious-node-001 from the network to prevent it from continuing to send malicious routing messages.</p></div>
+                    <div class="recommendation-card immediate"><span class="priority-tag">Immediate Action</span><h4><i class="fas fa-sync"></i> Rebuild Routing Table</h4><p>Force all affected nodes to recalculate routes, excluding the malicious node's forged Rank information.</p></div>
+                    <div class="recommendation-card short-term"><span class="priority-tag">Short-term Measure</span><h4><i class="fas fa-chart-line"></i> Enable Rank Monitoring</h4><p>Deploy continuous Rank value change monitoring with anomaly threshold alerts.</p></div>
+                    <div class="recommendation-card long-term"><span class="priority-tag">Long-term Measure</span><h4><i class="fas fa-lock"></i> Deploy Authentication</h4><p>Implement node identity authentication at the RPL protocol layer to prevent unauthorized nodes from joining the network.</p></div>
+                </div>
+            </section>
+
+            <section class="report-section">
+                <h3 class="section-title"><i class="fas fa-code"></i> Technical Details</h3>
+                <table class="detail-table">
+                    <tr><th>CLIPS Rules Engine</th><td>Fired <span id="rules-fired">3</span> rules</td></tr>
+                    <tr><th>Active Facts</th><td><span id="active-facts">12</span></td></tr>
+                    <tr><th>Inference Cycles</th><td><span id="inference-cycles">5</span></td></tr>
+                    <tr><th>Processing Time</th><td><span id="processing-time">128</span> ms</td></tr>
+                </table>
+            </section>
+        </div>
+
+        <footer class="report-footer">
+            <div class="footer-info">
+                <div class="footer-item"><strong>Report Generator</strong>IoT-Guardian Expert System</div>
+                <div class="footer-item"><strong>Inference Engine</strong>CLIPS via clipspy</div>
+                <div class="footer-item"><strong>Rule Base Version</strong>rpl_rules.clp v1.0</div>
+            </div>
+            <div class="footer-disclaimer">This report is generated by an automated expert system. It is recommended that a security expert review before taking action.<br>© 2024 IoT-Guardian - All Rights Reserved</div>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('report-time').textContent = new Date().toLocaleString('en-US');
+            document.getElementById('attack-time').textContent = new Date().toLocaleString('en-US');
+            const reportId = 'IOT-' + new Date().getFullYear() + '-' + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+            document.getElementById('report-id').textContent = reportId;
+            loadLatestAttackData();
+        });
+        
+        function loadLatestAttackData() { const data = localStorage.getItem('latestAttack'); if (data) { updateReportWithAttackData(JSON.parse(data)); } }
+        
+        function updateReportWithAttackData(data) {
+            if (data.attack) { document.getElementById('attack-type').innerHTML = `<span class="tag danger">${data.attack.type}</span>`; document.getElementById('attack-confidence').textContent = data.attack.confidence + '%'; const banner = document.getElementById('severity-banner'); const severity = data.attack.severity.toLowerCase(); banner.className = `severity-banner ${severity}`; banner.querySelector('h3').textContent = `Severity Level: ${data.attack.severity === 'CRITICAL' ? 'Critical' : data.attack.severity === 'HIGH' ? 'High' : 'Medium'}`; }
+            if (data.source) { document.getElementById('attack-source').textContent = data.source; }
+            if (data.target) { document.getElementById('attack-target').textContent = data.target; }
+            if (data.rules_fired) { document.getElementById('rules-fired').textContent = data.rules_fired; }
+            if (data.inference_paths && data.inference_paths.length > 0) { const container = document.getElementById('inference-paths'); container.innerHTML = ''; data.inference_paths.forEach((path, idx) => { container.innerHTML += `<div class="inference-box"><h4><i class="fas fa-project-diagram"></i> Inference Path #${idx + 1}</h4><p><strong>Rule:</strong> <span class="rule-name">${path.rule_name}</span></p><p><strong>Trigger Condition:</strong> ${path.trigger_condition}</p><p><strong>Inference Conclusion:</strong> ${path.conclusion}</p></div>`; }); if (data.reasons && data.reasons.length > 0) { data.reasons.forEach(reason => { container.innerHTML += `<div class="inference-box"><h4><i class="fas fa-lightbulb"></i> Reason Explanation</h4><p><strong>Explanation:</strong> ${reason.explanation}</p><p><strong>Evidence:</strong> ${reason.evidence}</p></div>`; }); } }
+            if (data.defenses && data.defenses.length > 0) { const grid = document.getElementById('recommendations'); grid.innerHTML = ''; data.defenses.forEach((def, idx) => { const priority = idx < 2 ? 'immediate' : (idx < 4 ? 'short-term' : 'long-term'); const priorityText = priority === 'immediate' ? 'Immediate Action' : (priority === 'short-term' ? 'Short-term Measure' : 'Long-term Measure'); grid.innerHTML += `<div class="recommendation-card ${priority}"><span class="priority-tag">${priorityText}</span><h4><i class="fas fa-shield-alt"></i> ${def.action_type}</h4><p>${def.description}</p></div>`; }); }
+        }
+        
+        function exportReport() { const reportData = { reportId: document.getElementById('report-id').textContent, generatedAt: new Date().toISOString(), attackType: document.getElementById('attack-type').textContent, attackSource: document.getElementById('attack-source').textContent, attackTarget: document.getElementById('attack-target').textContent, confidence: document.getElementById('attack-confidence').textContent, rulesFired: document.getElementById('rules-fired').textContent, systemVersion: 'v1.0.0' }; const blob = new Blob([JSON.stringify(reportData, null, 2)], {type: 'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `iot-guardian-report-${Date.now()}.json`; a.click(); }
+    </script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT-Guardian - Hacker Lab</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .hacker-theme { background: linear-gradient(135deg, #0a0a0a 0%, #1a0a0a 100%); }
+        .hacker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        .attack-form-card { grid-column: span 1; }
+        .results-card { grid-column: span 1; }
+        .console-card { grid-column: span 2; }
+        .attack-form { padding: 1rem; }
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; color: #e74c3c; font-weight: bold; font-size: 0.9rem; }
+        .form-group select, .form-group input { width: 100%; padding: 0.75rem 1rem; background: rgba(0,0,0,0.5); border: 2px solid #333; border-radius: 8px; color: #fff; font-size: 1rem; transition: border-color 0.3s ease; }
+        .form-group select:focus, .form-group input:focus { outline: none; border-color: #e74c3c; box-shadow: 0 0 10px rgba(231,76,60,0.3); }
+        .form-group select option { background: #1a1a1a; color: #fff; }
+        .attack-params { background: rgba(231,76,60,0.1); border: 1px solid rgba(231,76,60,0.3); border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+        .attack-params h4 { color: #e74c3c; margin-bottom: 1rem; font-size: 0.9rem; }
+        .param-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .btn-launch { width: 100%; padding: 1rem 2rem; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); border: none; border-radius: 8px; color: #fff; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 1.5rem; }
+        .btn-launch:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(231,76,60,0.4); }
+        .btn-launch:active { transform: translateY(0); }
+        .btn-launch.loading { opacity: 0.7; pointer-events: none; }
+        .results-panel { max-height: 500px; overflow-y: auto; }
+        .result-block { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; border-left: 4px solid; }
+        .result-block.attack { border-color: #e74c3c; }
+        .result-block.alert { border-color: #f39c12; }
+        .result-block.defense { border-color: #2ecc71; }
+        .result-block.inference { border-color: #3498db; }
+        .result-block.reason { border-color: #9b59b6; }
+        .result-block h4 { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; font-size: 0.95rem; }
+        .result-block.attack h4 { color: #e74c3c; }
+        .result-block.alert h4 { color: #f39c12; }
+        .result-block.defense h4 { color: #2ecc71; }
+        .result-block.inference h4 { color: #3498db; }
+        .result-block.reason h4 { color: #9b59b6; }
+        .result-item { padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem; }
+        .result-item:last-child { border-bottom: none; }
+        .result-item strong { color: #bdc3c7; }
+        .severity-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+        .severity-badge.critical { background: #e74c3c; }
+        .severity-badge.high { background: #e67e22; }
+        .severity-badge.medium { background: #f39c12; color: #000; }
+        .console-output { background: #000; border-radius: 8px; padding: 1rem; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.85rem; max-height: 250px; overflow-y: auto; }
+        .console-line { padding: 0.3rem 0; display: flex; gap: 0.5rem; }
+        .console-prompt { color: #e74c3c; font-weight: bold; }
+        .console-text { color: #7f8c8d; }
+        .console-line.success .console-text { color: #2ecc71; }
+        .console-line.error .console-text { color: #e74c3c; }
+        .console-line.info .console-text { color: #3498db; }
+        .attack-desc { background: rgba(231,76,60,0.1); border-radius: 8px; padding: 1rem; margin-top: 1rem; font-size: 0.85rem; color: #bdc3c7; }
+        .attack-desc h5 { color: #e74c3c; margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body class="hacker-theme">
+    <nav class="navbar">
+        <div class="nav-brand"><i class="fas fa-shield-alt"></i><span>IoT-Guardian</span></div>
+        <ul class="nav-links">
+            <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="/hacker" class="active"><i class="fas fa-user-secret"></i> Hacker Lab</a></li>
+            <li><a href="/defense"><i class="fas fa-shield-virus"></i> Defense Center</a></li>
+            <li><a href="/topology"><i class="fas fa-project-diagram"></i> Topology</a></li>
+            <li><a href="/report"><i class="fas fa-file-alt"></i> Reports</a></li>
+        </ul>
+        <div class="nav-status"><span class="status-indicator online"></span><span id="system-status">Attack Simulator Ready</span></div>
+    </nav>
+
+    <main class="dashboard-container">
+        <header class="page-header" style="background: linear-gradient(135deg, rgba(231,76,60,0.2), rgba(192,57,43,0.1)); border-color: #e74c3c;">
+            <h1 style="color: #e74c3c;"><i class="fas fa-user-secret"></i> Hacker Lab - Attack Simulator</h1>
+            <p>Simulate RPL protocol attacks to test expert system detection capabilities</p>
+        </header>
+
+        <section class="hacker-grid">
+            <div class="card attack-form-card">
+                <div class="card-header"><h2><i class="fas fa-crosshairs"></i> Attack Configuration</h2></div>
+                <div class="card-body">
+                    <form id="attack-form" class="attack-form">
+                        <div class="form-group">
+                            <label><i class="fas fa-microchip"></i> Target Node ID</label>
+                            <select id="target-node">
+                                <option value="gateway-001">gateway-001 (Gateway)</option>
+                                <option value="sensor-001">sensor-001 (Temperature Sensor)</option>
+                                <option value="sensor-002">sensor-002 (Humidity Sensor)</option>
+                                <option value="camera-001">camera-001 (Camera)</option>
+                                <option value="actuator-001">actuator-001 (Actuator)</option>
+                                <option value="router-001">router-001 (Routing Node)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-skull"></i> Attack Source Node</label>
+                            <select id="source-node">
+                                <option value="malicious-node-001">malicious-node-001 (Malicious Node)</option>
+                                <option value="compromised-sensor">compromised-sensor (Compromised Sensor)</option>
+                                <option value="rogue-device">rogue-device (Rogue Device)</option>
+                                <option value="external-attacker">external-attacker (External Attacker)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-bug"></i> Attack Type</label>
+                            <select id="attack-type" onchange="updateAttackParams()">
+                                <option value="Sinkhole">Sinkhole Attack - RPL Rank Forgery</option>
+                                <option value="HelloFlood">Hello Flood Attack - DIS Message Flooding</option>
+                                <option value="VersionNumber">Version Number Attack - DODAG Rebuild</option>
+                                <option value="SelectiveForwarding">Selective Forwarding Attack</option>
+                                <option value="Sybil">Sybil Attack - Multiple Identity Forgery</option>
+                                <option value="Wormhole">Wormhole Attack - Tunnel Creation</option>
+                            </select>
+                        </div>
+                        <div id="attack-params" class="attack-params">
+                            <h4><i class="fas fa-sliders-h"></i> Attack Parameters</h4>
+                            <div class="param-row" id="sinkhole-params">
+                                <div class="form-group"><label>Original Rank Value</label><input type="number" id="prev-rank" value="150" min="50" max="500"></div>
+                                <div class="form-group"><label>Forged Rank Value</label><input type="number" id="curr-rank" value="1" min="1" max="10"></div>
+                            </div>
+                            <div class="param-row" id="hello-params" style="display:none;">
+                                <div class="form-group"><label>Hello Packet Count</label><input type="number" id="hello-count" value="25" min="21" max="100"></div>
+                            </div>
+                            <div class="param-row" id="version-params" style="display:none;">
+                                <div class="form-group"><label>Original Version Number</label><input type="number" id="prev-version" value="5" min="1" max="50"></div>
+                                <div class="form-group"><label>Forged Version Number</label><input type="number" id="curr-version" value="15" min="10" max="100"></div>
+                            </div>
+                        </div>
+                        <div id="attack-desc" class="attack-desc">
+                            <h5><i class="fas fa-info-circle"></i> Sinkhole Attack Description</h5>
+                            <p>The attacker forges an extremely low Rank value (e.g., 1), making itself appear as the optimal path to the DODAG Root, thereby attracting and intercepting network traffic.</p>
+                        </div>
+                        <button type="button" id="btn-launch" class="btn-launch" onclick="launchAttack()"><i class="fas fa-bolt"></i> Launch Attack</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card results-card">
+                <div class="card-header"><h2><i class="fas fa-chart-bar"></i> Attack Results</h2></div>
+                <div class="card-body">
+                    <div id="results-panel" class="results-panel">
+                        <div class="empty-state"><i class="fas fa-hourglass-start"></i><p>Launch an attack to view results</p></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card console-card">
+                <div class="card-header"><h2><i class="fas fa-terminal"></i> Console Output</h2><button class="btn-clear" onclick="clearConsole()">Clear</button></div>
+                <div class="card-body">
+                    <div id="console-output" class="console-output">
+                        <div class="console-line info"><span class="console-prompt">$</span><span class="console-text">IoT-Guardian Hacker Lab initialized...</span></div>
+                        <div class="console-line"><span class="console-prompt">$</span><span class="console-text">Select attack type and configure parameters, then click "Launch Attack"</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        const attackDescriptions = {
+            'Sinkhole': { title: 'Sinkhole Attack Description', desc: 'The attacker forges an extremely low Rank value (e.g., 1), making itself appear as the optimal path to the DODAG Root, thereby attracting and intercepting network traffic.' },
+            'HelloFlood': { title: 'Hello Flood Attack Description', desc: 'The attacker broadcasts a large number of DIS (DODAG Information Solicitation) messages, consuming network bandwidth and node energy, causing network congestion.' },
+            'VersionNumber': { title: 'Version Number Attack Description', desc: 'The attacker forges an abnormally high DODAG Version Number, forcing the entire network to rebuild routing topology, consuming significant resources.' },
+            'SelectiveForwarding': { title: 'Selective Forwarding Attack Description', desc: 'A malicious node selectively drops certain packets while forwarding others, making it difficult to detect.' },
+            'Sybil': { title: 'Sybil Attack Description', desc: 'The attacker creates multiple fake identities, interfering with routing decisions and network trust mechanisms.' },
+            'Wormhole': { title: 'Wormhole Attack Description', desc: 'Two malicious nodes rapidly transmit packets through a private tunnel, disrupting the distance metrics of the routing protocol.' }
+        };
+        
+        function updateAttackParams() {
+            const attackType = document.getElementById('attack-type').value;
+            document.getElementById('sinkhole-params').style.display = 'none';
+            document.getElementById('hello-params').style.display = 'none';
+            document.getElementById('version-params').style.display = 'none';
+            if (attackType === 'Sinkhole') document.getElementById('sinkhole-params').style.display = 'grid';
+            else if (attackType === 'HelloFlood') document.getElementById('hello-params').style.display = 'grid';
+            else if (attackType === 'VersionNumber') document.getElementById('version-params').style.display = 'grid';
+            const desc = attackDescriptions[attackType] || { title: 'Attack Description', desc: 'No description available' };
+            document.getElementById('attack-desc').innerHTML = `<h5><i class="fas fa-info-circle"></i> ${desc.title}</h5><p>${desc.desc}</p>`;
+            addConsoleLog(`Selected attack type: ${attackType}`, 'info');
+        }
+        
+        function launchAttack() {
+            const btn = document.getElementById('btn-launch');
+            btn.classList.add('loading');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Attacking...';
+            const attackType = document.getElementById('attack-type').value;
+            const sourceNode = document.getElementById('source-node').value;
+            const targetNode = document.getElementById('target-node').value;
+            const requestBody = { attack_type: attackType, source: sourceNode, target: targetNode };
+            if (attackType === 'Sinkhole') { requestBody.prev_rank = parseInt(document.getElementById('prev-rank').value); requestBody.curr_rank = parseInt(document.getElementById('curr-rank').value); }
+            else if (attackType === 'HelloFlood') { requestBody.hello_count = parseInt(document.getElementById('hello-count').value); }
+            else if (attackType === 'VersionNumber') { requestBody.prev_version = parseInt(document.getElementById('prev-version').value); requestBody.curr_version = parseInt(document.getElementById('curr-version').value); }
+            addConsoleLog(`Launching ${attackType} attack...`);
+            addConsoleLog(`Source: ${sourceNode} → Target: ${targetNode}`);
+            fetch('/inject_attack', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody) })
+            .then(response => response.json())
+            .then(data => {
+                btn.classList.remove('loading');
+                btn.innerHTML = '<i class="fas fa-bolt"></i> Launch Attack';
+                if (data.success) { 
+                    addConsoleLog(`Attack injection successful!`, 'success'); 
+                    addConsoleLog(`Rules fired: ${data.rules_fired}`, data.rules_fired > 0 ? 'success' : 'info'); 
+                    
+                    // Show warnings if attack parameters are ineffective
+                    if (data.warnings && data.warnings.length > 0) {
+                        data.warnings.forEach(warning => {
+                            addConsoleLog(warning, 'error');
+                        });
+                    }
+                    
+                    displayResults(data); 
+                }
+                else { addConsoleLog(`Attack failed: ${data.error}`, 'error'); }
+            })
+            .catch(error => { btn.classList.remove('loading'); btn.innerHTML = '<i class="fas fa-bolt"></i> Launch Attack'; addConsoleLog(`Error: ${error}`, 'error'); });
+        }
+        
+        function displayResults(data) {
+            const panel = document.getElementById('results-panel');
+            let html = '';
+            
+            // Show warnings at the top if attack is ineffective
+            if (data.warnings && data.warnings.length > 0) {
+                html += `<div class="result-block" style="border-color: #f39c12; background: rgba(243,156,18,0.15);"><h4 style="color: #f39c12;"><i class="fas fa-exclamation-triangle"></i> Attack Ineffective</h4>`;
+                data.warnings.forEach(warning => {
+                    html += `<div class="result-item" style="color: #f39c12;">${warning}</div>`;
+                });
+                html += `<div class="result-item" style="margin-top: 0.5rem; color: #bdc3c7;"><i class="fas fa-info-circle"></i> The attack was injected but did not trigger any detection rules. Adjust parameters to simulate a detectable attack.</div></div>`;
+            }
+            
+            html += `<div class="result-block attack"><h4><i class="fas fa-bug"></i> Attack Injection ${data.attack_effective !== false ? 'Successful' : 'Completed'}</h4><div class="result-item"><strong>Type:</strong> ${data.attack.type}</div><div class="result-item"><strong>Severity:</strong> <span class="severity-badge ${data.attack.severity.toLowerCase()}">${data.attack.severity}</span></div><div class="result-item"><strong>Confidence:</strong> ${data.attack.confidence}%</div><div class="result-item"><strong>Description:</strong> ${data.attack.description}</div><div class="result-item"><strong>Rules Fired:</strong> <span style="color: ${data.rules_fired > 0 ? '#2ecc71' : '#e74c3c'}">${data.rules_fired}</span></div></div>`;
+            if (data.alerts && data.alerts.length > 0) { html += `<div class="result-block alert"><h4><i class="fas fa-bell"></i> Generated Alerts (${data.alerts.length})</h4>`; data.alerts.forEach(alert => { html += `<div class="result-item"><span class="severity-badge ${(alert.level || 'warning').toLowerCase()}">${alert.level || alert.attack_type}</span> ${alert.message}</div>`; }); html += '</div>'; }
+            if (data.defenses && data.defenses.length > 0) { html += `<div class="result-block defense"><h4><i class="fas fa-shield-alt"></i> Defense Recommendations (${data.defenses.length})</h4>`; data.defenses.forEach(def => { html += `<div class="result-item"><strong>${def.action_type}</strong>: ${def.description} <span class="severity-badge ${(def.priority || 'medium').toLowerCase()}">${def.priority}</span></div>`; }); html += '</div>'; }
+            if (data.inference_paths && data.inference_paths.length > 0) { html += `<div class="result-block inference"><h4><i class="fas fa-project-diagram"></i> Inference Paths (${data.inference_paths.length})</h4>`; data.inference_paths.forEach(path => { html += `<div class="result-item"><strong>Rule:</strong> ${path.rule_name}<br><strong>Trigger Condition:</strong> ${path.trigger_condition}<br><strong>Conclusion:</strong> ${path.conclusion}</div>`; }); html += '</div>'; }
+            if (data.reasons && data.reasons.length > 0) { html += `<div class="result-block reason"><h4><i class="fas fa-lightbulb"></i> Reason Explanation</h4>`; data.reasons.forEach(reason => { html += `<div class="result-item"><strong>Explanation:</strong> ${reason.explanation}<br><strong>Evidence:</strong> ${reason.evidence}</div>`; }); html += '</div>'; }
+            
+            // If no alerts/defenses generated, show a note
+            if ((!data.alerts || data.alerts.length === 0) && (!data.warnings || data.warnings.length === 0)) {
+                html += `<div class="result-block" style="border-color: #3498db; background: rgba(52,152,219,0.1);"><h4 style="color: #3498db;"><i class="fas fa-info-circle"></i> No Alerts Generated</h4><div class="result-item">The attack was processed but no detection rules were triggered. This could mean the attack parameters are within normal thresholds.</div></div>`;
+            }
+            
+            panel.innerHTML = html;
+        }
+        
+        function addConsoleLog(message, type = '') {
+            const console = document.getElementById('console-output');
+            const time = new Date().toLocaleTimeString();
+            const line = document.createElement('div');
+            line.className = `console-line ${type}`;
+            line.innerHTML = `<span class="console-prompt">[${time}]$</span><span class="console-text">${message}</span>`;
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+        }
+        
+        function loadTargetNodes() {
+            // Load nodes from localStorage (synced with topology editor)
+            const savedTopology = localStorage.getItem('iot-topology');
+            const select = document.getElementById('target-node');
+            if (savedTopology) {
+                try {
+                    const topology = JSON.parse(savedTopology);
+                    select.innerHTML = topology.nodes.map(n => {
+                        const typeLabel = n.type ? `(${n.type.charAt(0).toUpperCase() + n.type.slice(1)})` : '';
+                        return `<option value="${n.id}">${n.id} ${typeLabel}</option>`;
+                    }).join('');
+                    addConsoleLog(`Loaded ${topology.nodes.length} target nodes from network topology`, 'info');
+                } catch (e) {
+                    console.error('Error loading topology:', e);
+                    addConsoleLog('Using default target nodes', 'info');
+                }
+            }
+        }
+        
+        function clearConsole() { document.getElementById('console-output').innerHTML = `<div class="console-line info"><span class="console-prompt">$</span><span class="console-text">Console cleared</span></div>`; }
+        function clearResults() { document.getElementById('results-panel').innerHTML = `<div class="empty-state"><i class="fas fa-hourglass-start"></i><p>Launch an attack to view results</p></div>`; }
+        
+        document.addEventListener('DOMContentLoaded', function() { 
+            loadTargetNodes();
+            
+            const socket = io();
+            socket.on('connect', function() {
+                console.log('Hacker Lab: Connected to server');
+                document.getElementById('system-status').textContent = 'Attack Simulator Ready';
+            });
+            socket.on('disconnect', function() {
+                document.getElementById('system-status').textContent = 'Disconnected';
+            });
+            
+            // Listen for topology updates
+            socket.on('topology_updated', function(data) {
+                if (data && data.nodes) {
+                    localStorage.setItem('iot-topology', JSON.stringify(data));
+                    loadTargetNodes();
+                    addConsoleLog('Target nodes updated from topology editor', 'info');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

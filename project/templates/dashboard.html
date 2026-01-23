@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT-Guardian - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.23.0/cytoscape.min.js"></script>
+    <style>
+        #topology-container {
+            width: 100%;
+            height: 500px;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 100%);
+            border-radius: 12px;
+            border: 1px solid #34495e;
+        }
+        .topology-legend {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .legend-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+        }
+        .legend-dot.normal { background: #2ecc71; box-shadow: 0 0 10px #2ecc71; }
+        .legend-dot.warning { background: #f39c12; box-shadow: 0 0 10px #f39c12; }
+        .legend-dot.danger { background: #e74c3c; box-shadow: 0 0 10px #e74c3c; }
+        .legend-dot.gateway { background: #3498db; box-shadow: 0 0 10px #3498db; }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .stat-box {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+        .stat-box:hover { transform: translateY(-5px); }
+        .stat-box .number { font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem; }
+        .stat-box.attacks .number { color: #e74c3c; }
+        .stat-box.alerts .number { color: #f39c12; }
+        .stat-box.defenses .number { color: #2ecc71; }
+        .stat-box.nodes .number { color: #3498db; }
+        .alert-feed { max-height: 300px; overflow-y: auto; }
+        .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            border-left: 4px solid;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .alert-item.critical { border-color: #e74c3c; background: rgba(231,76,60,0.1); }
+        .alert-item.high { border-color: #e67e22; background: rgba(230,126,34,0.1); }
+        .alert-item.warning { border-color: #f39c12; background: rgba(243,156,18,0.1); }
+        .alert-icon { font-size: 1.5rem; }
+        .alert-item.critical .alert-icon { color: #e74c3c; }
+        .alert-item.high .alert-icon { color: #e67e22; }
+        .alert-item.warning .alert-icon { color: #f39c12; }
+        .content-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
+        .full-width { grid-column: span 2; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <i class="fas fa-shield-alt"></i>
+            <span>IoT-Guardian</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/" class="active"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="/hacker"><i class="fas fa-user-secret"></i> Hacker Lab</a></li>
+            <li><a href="/defense"><i class="fas fa-shield-virus"></i> Defense Center</a></li>
+            <li><a href="/topology"><i class="fas fa-project-diagram"></i> Topology</a></li>
+            <li><a href="/report"><i class="fas fa-file-alt"></i> Reports</a></li>
+        </ul>
+        <div class="nav-status">
+            <span class="status-indicator online"></span>
+            <span id="system-status">System Online</span>
+        </div>
+    </nav>
+
+    <main class="dashboard-container">
+        <header class="dashboard-header">
+            <h1><i class="fas fa-tachometer-alt"></i> Security Monitoring Center</h1>
+            <p>Real-time IoT Network Security Situational Awareness</p>
+        </header>
+
+        <section class="stats-row">
+            <div class="stat-box nodes">
+                <div class="number" id="node-count">6</div>
+                <div class="label"><i class="fas fa-microchip"></i> Network Nodes</div>
+            </div>
+            <div class="stat-box attacks">
+                <div class="number" id="attack-count">0</div>
+                <div class="label"><i class="fas fa-bug"></i> Detected Attacks</div>
+            </div>
+            <div class="stat-box alerts">
+                <div class="number" id="alert-count">0</div>
+                <div class="label"><i class="fas fa-bell"></i> Active Alerts</div>
+            </div>
+            <div class="stat-box defenses">
+                <div class="number" id="defense-count">0</div>
+                <div class="label"><i class="fas fa-shield-alt"></i> Defense Actions</div>
+            </div>
+        </section>
+
+        <section class="content-grid">
+            <div class="card full-width">
+                <div class="card-header">
+                    <h2><i class="fas fa-project-diagram"></i> Network Topology (Real-time)</h2>
+                </div>
+                <div class="card-body">
+                    <div id="topology-container"></div>
+                    <div class="topology-legend">
+                        <div class="legend-item">
+                            <div class="legend-dot gateway"></div>
+                            <span>Gateway</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot normal"></div>
+                            <span>Normal Node</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot warning"></div>
+                            <span>Suspicious Node</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot danger"></div>
+                            <span>Attack Node</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-exclamation-triangle"></i> Real-time Alerts</h2>
+                    <button class="btn-clear" onclick="clearAlerts()">Clear</button>
+                </div>
+                <div class="card-body">
+                    <div id="alert-feed" class="alert-feed">
+                        <div class="empty-state" id="no-alerts">
+                            <i class="fas fa-check-circle" style="color: #2ecc71;"></i>
+                            <p>System Secure - No Alerts</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2><i class="fas fa-terminal"></i> System Log</h2>
+                </div>
+                <div class="card-body">
+                    <div id="system-log" class="inference-log">
+                        <div class="log-entry">
+                            <span class="log-time">--:--:--</span>
+                            <span class="log-msg">Waiting for events...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        let cy;
+        let nodeStates = {};
+        
+        // Default nodes configuration (fallback)
+        const defaultNodes = [
+            { id: 'gateway-001', label: 'Gateway\n192.168.1.1', type: 'gateway' },
+            { id: 'sensor-001', label: 'Sensor 1\nTemperature', type: 'sensor' },
+            { id: 'sensor-002', label: 'Sensor 2\nHumidity', type: 'sensor' },
+            { id: 'camera-001', label: 'Camera\nSurveillance', type: 'camera' },
+            { id: 'actuator-001', label: 'Actuator\nController', type: 'actuator' },
+            { id: 'router-001', label: 'Router\nRouting Node', type: 'router' }
+        ];
+        const defaultEdges = [
+            { from: 'sensor-001', to: 'gateway-001' },
+            { from: 'sensor-002', to: 'gateway-001' },
+            { from: 'camera-001', to: 'router-001' },
+            { from: 'actuator-001', to: 'router-001' },
+            { from: 'router-001', to: 'gateway-001' }
+        ];
+        
+        function getNodeStyle(type) {
+            const styles = {
+                gateway: { 'background-color': '#3498db', 'border-color': '#2980b9', 'shadow-color': '#3498db', 'width': 70, 'height': 70 },
+                router: { 'background-color': '#9b59b6', 'border-color': '#8e44ad', 'shadow-color': '#9b59b6', 'width': 55, 'height': 55, 'shape': 'triangle' },
+                malicious: { 'background-color': '#e74c3c', 'border-color': '#c0392b', 'shadow-color': '#e74c3c' },
+                sensor: { 'background-color': '#2ecc71', 'border-color': '#27ae60', 'shadow-color': '#2ecc71' },
+                camera: { 'background-color': '#2ecc71', 'border-color': '#27ae60', 'shadow-color': '#2ecc71' },
+                actuator: { 'background-color': '#2ecc71', 'border-color': '#27ae60', 'shadow-color': '#2ecc71' }
+            };
+            return styles[type] || styles.sensor;
+        }
+        
+        function loadTopologyFromStorage() {
+            // Try to load from localStorage (synced with topology editor)
+            const savedTopology = localStorage.getItem('iot-topology');
+            if (savedTopology) {
+                try {
+                    const saved = JSON.parse(savedTopology);
+                    return {
+                        nodes: saved.nodes.map(n => ({ id: n.id, label: n.label, type: n.type || 'sensor' })),
+                        edges: saved.edges.map(e => ({ from: e.from, to: e.to }))
+                    };
+                } catch (e) {
+                    console.error('Dashboard: Error parsing saved topology:', e);
+                }
+            }
+            return { nodes: defaultNodes, edges: defaultEdges };
+        }
+        
+        function initTopology() {
+            const topology = loadTopologyFromStorage();
+            
+            const elements = [];
+            // Add nodes
+            topology.nodes.forEach(node => {
+                elements.push({ data: { id: node.id, label: node.label, type: node.type || 'sensor' } });
+            });
+            // Add hidden malicious node for attack visualization
+            elements.push({ data: { id: 'malicious-node-001', label: 'Malicious\nAttacker', type: 'malicious' }, classes: 'hidden' });
+            // Add edges
+            topology.edges.forEach((edge, idx) => {
+                elements.push({ data: { id: `e${idx}`, source: edge.from, target: edge.to } });
+            });
+            
+            cy = cytoscape({
+                container: document.getElementById('topology-container'),
+                elements: elements,
+                style: [
+                    { selector: 'node', style: { 'background-color': '#2ecc71', 'label': 'data(label)', 'color': '#fff', 'text-valign': 'bottom', 'text-margin-y': 10, 'font-size': '10px', 'text-wrap': 'wrap', 'text-max-width': '80px', 'width': 50, 'height': 50, 'border-width': 3, 'border-color': '#27ae60', 'shadow-blur': 15, 'shadow-color': '#2ecc71', 'shadow-opacity': 0.8 } },
+                    { selector: 'node[type="gateway"]', style: { 'background-color': '#3498db', 'border-color': '#2980b9', 'width': 70, 'height': 70, 'font-size': '12px', 'font-weight': 'bold', 'shadow-color': '#3498db' } },
+                    { selector: 'node[type="router"]', style: { 'background-color': '#9b59b6', 'border-color': '#8e44ad', 'width': 55, 'height': 55, 'shadow-color': '#9b59b6' } },
+                    { selector: 'node[type="malicious"]', style: { 'background-color': '#e74c3c', 'border-color': '#c0392b', 'shadow-color': '#e74c3c' } },
+                    { selector: 'node.hidden', style: { 'display': 'none' } },
+                    { selector: 'node.warning', style: { 'background-color': '#f39c12', 'border-color': '#d68910', 'shadow-color': '#f39c12' } },
+                    { selector: 'node.danger', style: { 'background-color': '#e74c3c', 'border-color': '#c0392b', 'shadow-color': '#e74c3c', 'shadow-blur': 25, 'shadow-opacity': 1 } },
+                    { selector: 'edge', style: { 'width': 2, 'line-color': '#3498db', 'opacity': 0.7, 'curve-style': 'bezier' } },
+                    { selector: 'edge.attack', style: { 'line-color': '#e74c3c', 'width': 4, 'line-style': 'dashed' } }
+                ],
+                layout: { name: 'cose', idealEdgeLength: 150, nodeRepulsion: 8000, animate: true }
+            });
+            cy.nodes().forEach(node => { nodeStates[node.id()] = 'normal'; });
+            
+            // Update node count
+            document.getElementById('node-count').textContent = topology.nodes.length;
+            console.log('Dashboard: Topology initialized with', topology.nodes.length, 'nodes');
+        }
+        
+        function reloadTopology() {
+            // Reload topology from localStorage
+            const topology = loadTopologyFromStorage();
+            
+            // Clear and rebuild cytoscape
+            cy.elements().remove();
+            
+            // Add nodes
+            topology.nodes.forEach(node => {
+                cy.add({ data: { id: node.id, label: node.label, type: node.type || 'sensor' } });
+            });
+            // Add malicious node
+            cy.add({ data: { id: 'malicious-node-001', label: 'Malicious\nAttacker', type: 'malicious' }, classes: 'hidden' });
+            // Add edges
+            topology.edges.forEach((edge, idx) => {
+                cy.add({ data: { id: `e${idx}`, source: edge.from, target: edge.to } });
+            });
+            
+            // Re-run layout
+            cy.layout({ name: 'cose', idealEdgeLength: 150, nodeRepulsion: 8000, animate: true }).run();
+            
+            // Reset node states
+            cy.nodes().forEach(node => { nodeStates[node.id()] = 'normal'; });
+            document.getElementById('node-count').textContent = topology.nodes.length;
+            console.log('Dashboard: Topology reloaded with', topology.nodes.length, 'nodes');
+        }
+        
+        function markNodeAttacked(nodeId) {
+            let node = cy.getElementById(nodeId);
+            if (node.length === 0) {
+                cy.nodes().forEach(n => {
+                    if (n.id().includes(nodeId) || nodeId.includes(n.id())) { node = n; }
+                });
+            }
+            if (node && node.length > 0) {
+                node.removeClass('warning hidden').addClass('danger');
+                nodeStates[node.id()] = 'danger';
+                node.animate({ style: { 'width': 65, 'height': 65 } }, { duration: 200 }).animate({ style: { 'width': 50, 'height': 50 } }, { duration: 200 });
+                node.connectedEdges().addClass('attack');
+            }
+            if (nodeId.includes('malicious')) {
+                const malNode = cy.getElementById('malicious-node-001');
+                malNode.removeClass('hidden').addClass('danger');
+            }
+        }
+        
+        function resetTopology() {
+            // Only reset visual state, don't clear server data
+            cy.nodes().forEach(node => {
+                if (node.data('type') !== 'malicious') { node.removeClass('warning danger'); }
+                else { node.addClass('hidden'); }
+                nodeStates[node.id()] = 'normal';
+            });
+            cy.edges().removeClass('attack');
+        }
+        
+        function addAlert(alert) {
+            const feed = document.getElementById('alert-feed');
+            const noAlerts = document.getElementById('no-alerts');
+            if (noAlerts) noAlerts.style.display = 'none';
+            const levelClass = (alert.level || 'warning').toLowerCase();
+            const iconMap = { 'critical': 'fa-skull-crossbones', 'high': 'fa-exclamation-triangle', 'warning': 'fa-exclamation-circle' };
+            const alertHtml = `
+                <div class="alert-item ${levelClass}">
+                    <div class="alert-icon"><i class="fas ${iconMap[levelClass] || 'fa-bell'}"></i></div>
+                    <div class="alert-content">
+                        <div class="alert-title"><strong>${alert.attack_type || alert.level || 'Alert'}</strong></div>
+                        <div class="alert-message">${alert.message}</div>
+                        <div class="alert-time" style="font-size:0.8em;color:#888;">${alert.timestamp || new Date().toLocaleTimeString()}</div>
+                    </div>
+                </div>
+            `;
+            feed.insertAdjacentHTML('afterbegin', alertHtml);
+            if (alert.node_id) { markNodeAttacked(alert.node_id); }
+            updateStats();
+        }
+        
+        function clearAlerts() {
+            // Clear UI only
+            document.getElementById('alert-feed').innerHTML = `
+                <div class="empty-state" id="no-alerts">
+                    <i class="fas fa-check-circle" style="color: #2ecc71;"></i>
+                    <p>System Secure - No Alerts</p>
+                </div>
+            `;
+            resetTopology();
+            // Clear server-side data
+            fetch('/api/clear_defense_data', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    console.log('Dashboard: Server data cleared', data);
+                    document.getElementById('attack-count').textContent = '0';
+                    document.getElementById('alert-count').textContent = '0';
+                    document.getElementById('defense-count').textContent = '0';
+                })
+                .catch(err => console.error('Error clearing data:', err));
+        }
+        
+        function updateStats() {
+            fetch('/api/status').then(r => r.json()).then(data => {
+                document.getElementById('attack-count').textContent = data.attacks_detected || 0;
+                document.getElementById('alert-count').textContent = data.alerts_count || 0;
+                document.getElementById('defense-count').textContent = data.defenses_count || 0;
+            });
+        }
+        
+        function addLogEntry(message) {
+            const log = document.getElementById('system-log');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">${time}</span><span class="log-msg">${message}</span>`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            initTopology();
+            updateStats();
+            
+            // Initialize socket directly for this page
+            const socket = io();
+            
+            socket.on('connect', function() {
+                console.log('Dashboard: Connected to server');
+                document.getElementById('system-status').textContent = 'System Online';
+            });
+            
+            socket.on('disconnect', function() {
+                console.log('Dashboard: Disconnected');
+                document.getElementById('system-status').textContent = 'Disconnected';
+            });
+            
+            // Load existing data on page load
+            fetch('/api/defense_data')
+                .then(r => r.json())
+                .then(data => {
+                    console.log('Dashboard: Loading existing data', data);
+                    if (data.alerts && data.alerts.length > 0) {
+                        data.alerts.forEach(alert => {
+                            addAlert(alert);
+                        });
+                    }
+                    updateStats();
+                })
+                .catch(err => console.error('Error loading existing data:', err));
+            
+            // Real-time event listeners
+            socket.on('new_alert', function(alert) { 
+                console.log('Dashboard received alert:', alert);
+                addAlert(alert); 
+                addLogEntry(`⚠️ Alert: ${alert.message}`); 
+                updateStats();
+            });
+            socket.on('new_defense', function(data) {
+                console.log('Dashboard received defense:', data);
+                addLogEntry(`🛡️ Defense: ${data.action_type}`);
+                updateStats();
+            });
+            socket.on('inference_path', function(data) {
+                console.log('Dashboard received inference:', data);
+                addLogEntry(`🧠 Rule: ${data.rule_name}`);
+            });
+            socket.on('inference_update', function(data) { 
+                addLogEntry(data.message); 
+            });
+            
+            // Listen for topology changes from topology editor
+            socket.on('topology_updated', function(data) {
+                console.log('Dashboard: Topology update received', data);
+                if (data && data.nodes) {
+                    localStorage.setItem('iot-topology', JSON.stringify(data));
+                    reloadTopology();
+                    addLogEntry('🔄 Network topology updated');
+                }
+            });
+            
+            socket.on('data_cleared', function(data) {
+                console.log('Dashboard: Data cleared by server');
+                clearAlerts();
+                updateStats();
+            });
+            
+            setInterval(updateStats, 5000);
+        });
+    </script>
+</body>
+</html>

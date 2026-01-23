@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT-Guardian - Defense Center</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .defense-theme { background: linear-gradient(135deg, #0a0a1a 0%, #0a1a0a 100%); }
+        .defense-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; min-height: 500px; max-height: calc(100vh - 280px); }
+        .column { display: flex; flex-direction: column; height: 100%; }
+        .column .card { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .column .card .card-body { flex: 1; overflow-y: auto; }
+        .fact-stream { padding: 0.5rem; }
+        .fact-item { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; border-left: 4px solid #3498db; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+        .fact-item.rpl-packet { border-color: #3498db; }
+        .fact-item.attack-alert { border-color: #e74c3c; }
+        .fact-item.defense-action { border-color: #2ecc71; }
+        .fact-item.node-rank { border-color: #f39c12; }
+        .fact-item.version-record { border-color: #9b59b6; }
+        .fact-item.hello-counter { border-color: #1abc9c; }
+        .fact-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+        .fact-type { font-weight: bold; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
+        .fact-type.rpl-packet { color: #3498db; }
+        .fact-type.attack-alert { color: #e74c3c; }
+        .fact-type.defense-action { color: #2ecc71; }
+        .fact-type.node-rank { color: #f39c12; }
+        .fact-type.version-record { color: #9b59b6; }
+        .fact-type.hello-counter { color: #1abc9c; }
+        .fact-time { font-size: 0.75rem; color: #7f8c8d; }
+        .fact-slots { display: grid; gap: 0.25rem; }
+        .fact-slot { font-size: 0.8rem; color: #bdc3c7; }
+        .fact-slot strong { color: #95a5a6; margin-right: 0.5rem; }
+        .fact-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem; }
+        .fact-badge.new { background: #27ae60; }
+        .fact-badge.modified { background: #f39c12; color: #000; }
+        .fact-badge.retracted { background: #e74c3c; }
+        .inference-panel { padding: 0.5rem; }
+        .inference-chain { position: relative; padding-left: 2rem; }
+        .inference-chain::before { content: ''; position: absolute; left: 0.75rem; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, #3498db, #2ecc71); }
+        .inference-step { position: relative; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+        .inference-step::before { content: ''; position: absolute; left: -1.5rem; top: 1.25rem; width: 12px; height: 12px; border-radius: 50%; background: #3498db; border: 2px solid #1a1a2e; }
+        .inference-step.trigger::before { background: #e74c3c; }
+        .inference-step.rule::before { background: #f39c12; }
+        .inference-step.conclusion::before { background: #2ecc71; }
+        .step-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+        .step-label { font-weight: bold; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; }
+        .step-label.trigger { color: #e74c3c; }
+        .step-label.rule { color: #f39c12; }
+        .step-label.conclusion { color: #2ecc71; }
+        .step-content { font-size: 0.85rem; color: #bdc3c7; line-height: 1.6; }
+        .step-code { background: rgba(0,0,0,0.4); border-radius: 4px; padding: 0.5rem 0.75rem; margin-top: 0.5rem; font-family: 'Consolas', monospace; font-size: 0.8rem; color: #2ecc71; overflow-x: auto; }
+        .reason-item { background: rgba(155,89,182,0.1); border: 1px solid rgba(155,89,182,0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+        .reason-header { display: flex; align-items: center; gap: 0.5rem; color: #9b59b6; font-weight: bold; margin-bottom: 0.5rem; }
+        .reason-text { font-size: 0.9rem; color: #bdc3c7; line-height: 1.6; }
+        .evidence-tag { display: inline-block; background: rgba(155,89,182,0.2); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-top: 0.5rem; color: #9b59b6; }
+        .defense-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 1rem; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-card.facts { border-color: #3498db; }
+        .stat-card.rules { border-color: #f39c12; }
+        .stat-card.alerts { border-color: #e74c3c; }
+        .stat-card.defenses { border-color: #2ecc71; }
+        .stat-value { font-size: 2rem; font-weight: bold; }
+        .stat-card.facts .stat-value { color: #3498db; }
+        .stat-card.rules .stat-value { color: #f39c12; }
+        .stat-card.alerts .stat-value { color: #e74c3c; }
+        .stat-card.defenses .stat-value { color: #2ecc71; }
+        .stat-label { font-size: 0.8rem; color: #7f8c8d; margin-top: 0.25rem; }
+        .controls-bar { display: flex; gap: 1rem; margin-bottom: 1rem; }
+        .btn-control { padding: 0.5rem 1rem; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; transition: all 0.3s ease; }
+        .btn-control.primary { background: #2ecc71; color: #fff; }
+        .btn-control.secondary { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+        .btn-control:hover { transform: translateY(-2px); }
+        .status-light { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 0.5rem; }
+        .status-light.active { background: #2ecc71; animation: pulse 1s infinite; }
+        .status-light.paused { background: #f39c12; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="defense-theme">
+    <nav class="navbar">
+        <div class="nav-brand"><i class="fas fa-shield-alt"></i><span>IoT-Guardian</span></div>
+        <ul class="nav-links">
+            <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="/hacker"><i class="fas fa-user-secret"></i> Hacker Lab</a></li>
+            <li><a href="/defense" class="active"><i class="fas fa-shield-virus"></i> Defense Center</a></li>
+            <li><a href="/topology"><i class="fas fa-project-diagram"></i> Topology</a></li>
+            <li><a href="/report"><i class="fas fa-file-alt"></i> Reports</a></li>
+        </ul>
+        <div class="nav-status"><span id="status-light" class="status-light active"></span><span id="system-status">Real-time Monitoring</span></div>
+    </nav>
+
+    <main class="dashboard-container">
+        <header class="page-header" style="background: linear-gradient(135deg, rgba(46,204,113,0.2), rgba(39,174,96,0.1)); border-color: #2ecc71;">
+            <h1 style="color: #2ecc71;"><i class="fas fa-shield-virus"></i> Defense Center</h1>
+            <p>Real-time monitoring of fact base changes and expert system reasoning process</p>
+        </header>
+        
+        <section class="defense-stats">
+            <div class="stat-card facts"><div class="stat-value" id="fact-count">0</div><div class="stat-label">Active Facts</div></div>
+            <div class="stat-card rules"><div class="stat-value" id="rule-count">0</div><div class="stat-label">Rules Fired</div></div>
+            <div class="stat-card alerts"><div class="stat-value" id="alert-count">0</div><div class="stat-label">Security Alerts</div></div>
+            <div class="stat-card defenses"><div class="stat-value" id="defense-count">0</div><div class="stat-label">Defense Actions</div></div>
+        </section>
+        
+        <section class="controls-bar">
+            <button class="btn-control primary" id="btn-toggle" onclick="toggleMonitoring()"><i class="fas fa-pause"></i> Pause Monitoring</button>
+            <button class="btn-control secondary" onclick="clearFactStream()"><i class="fas fa-trash"></i> Clear Fact Stream</button>
+            <button class="btn-control secondary" onclick="clearInference()"><i class="fas fa-eraser"></i> Clear Inference</button>
+            <button class="btn-control secondary" onclick="exportData()"><i class="fas fa-download"></i> Export Data</button>
+        </section>
+        
+        <section class="defense-layout">
+            <div class="column">
+                <div class="card">
+                    <div class="card-header"><h2><i class="fas fa-database"></i> Real-time Fact Stream</h2><span class="badge" id="fact-stream-count">0 facts</span></div>
+                    <div class="card-body">
+                        <div id="fact-stream" class="fact-stream">
+                            <div class="empty-state"><i class="fas fa-hourglass-start"></i><p>Waiting for fact updates...</p></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="column">
+                <div class="card">
+                    <div class="card-header"><h2><i class="fas fa-brain"></i> Expert Reasoning Process</h2><span class="badge" id="inference-count">0 inference steps</span></div>
+                    <div class="card-body">
+                        <div id="inference-panel" class="inference-panel">
+                            <div class="empty-state"><i class="fas fa-cogs"></i><p>Waiting for inference engine...</p></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        let isMonitoring = true, factCount = 0, ruleCount = 0, alertCount = 0, defenseCount = 0, facts = [], inferences = [];
+        
+        function toggleMonitoring() {
+            isMonitoring = !isMonitoring;
+            const btn = document.getElementById('btn-toggle');
+            const statusLight = document.getElementById('status-light');
+            const statusText = document.getElementById('system-status');
+            if (isMonitoring) { btn.innerHTML = '<i class="fas fa-pause"></i> Pause Monitoring'; btn.classList.remove('secondary'); btn.classList.add('primary'); statusLight.className = 'status-light active'; statusText.textContent = 'Real-time Monitoring'; }
+            else { btn.innerHTML = '<i class="fas fa-play"></i> Resume Monitoring'; btn.classList.remove('primary'); btn.classList.add('secondary'); statusLight.className = 'status-light paused'; statusText.textContent = 'Monitoring Paused'; }
+        }
+        
+        function addFactToStream(fact) {
+            if (!isMonitoring) return;
+            const stream = document.getElementById('fact-stream');
+            if (stream.querySelector('.empty-state')) stream.innerHTML = '';
+            factCount++;
+            const factType = fact.type || 'unknown';
+            const time = new Date().toLocaleTimeString();
+            const factHtml = document.createElement('div');
+            factHtml.className = `fact-item ${factType.replace(/-/g, '-')}`;
+            let slotsHtml = '';
+            Object.entries(fact.slots || {}).forEach(([key, value]) => { slotsHtml += `<div class="fact-slot"><strong>${key}:</strong> ${value}</div>`; });
+            factHtml.innerHTML = `<div class="fact-header"><span class="fact-type ${factType}"><i class="fas fa-cube"></i> ${factType}<span class="fact-badge new">NEW</span></span><span class="fact-time">${time}</span></div><div class="fact-slots">${slotsHtml}</div>`;
+            stream.insertBefore(factHtml, stream.firstChild);
+            updateCounts();
+            while (stream.children.length > 50) stream.removeChild(stream.lastChild);
+        }
+        
+        function addInferenceStep(inference) {
+            if (!isMonitoring) return;
+            const panel = document.getElementById('inference-panel');
+            if (panel.querySelector('.empty-state')) panel.innerHTML = '<div class="inference-chain"></div>';
+            const chain = panel.querySelector('.inference-chain') || panel;
+            ruleCount++;
+            if (inference.trigger_condition) { const trigger = document.createElement('div'); trigger.className = 'inference-step trigger'; trigger.innerHTML = `<div class="step-header"><span class="step-label trigger"><i class="fas fa-bolt"></i> Trigger Condition</span></div><div class="step-content">${inference.trigger_condition}</div>`; chain.appendChild(trigger); }
+            const rule = document.createElement('div'); rule.className = 'inference-step rule'; rule.innerHTML = `<div class="step-header"><span class="step-label rule"><i class="fas fa-cog"></i> Rule Execution</span></div><div class="step-content"><strong>${inference.rule_name}</strong><div class="step-code">(defrule ${inference.rule_name} ...)</div></div>`; chain.appendChild(rule);
+            if (inference.conclusion) { const conclusion = document.createElement('div'); conclusion.className = 'inference-step conclusion'; conclusion.innerHTML = `<div class="step-header"><span class="step-label conclusion"><i class="fas fa-check-circle"></i> Inference Conclusion</span></div><div class="step-content">${inference.conclusion}</div>`; chain.appendChild(conclusion); }
+            updateCounts();
+        }
+        
+        function addReasonExplanation(reason) {
+            if (!isMonitoring) return;
+            const panel = document.getElementById('inference-panel');
+            const reasonHtml = document.createElement('div'); reasonHtml.className = 'reason-item';
+            reasonHtml.innerHTML = `<div class="reason-header"><i class="fas fa-lightbulb"></i> Expert Explanation</div><div class="reason-text">${reason.explanation}</div><div class="evidence-tag"><i class="fas fa-search"></i> Evidence: ${reason.evidence}</div>`;
+            panel.appendChild(reasonHtml);
+        }
+        
+        function updateCounts() {
+            document.getElementById('fact-count').textContent = factCount;
+            document.getElementById('rule-count').textContent = ruleCount;
+            document.getElementById('alert-count').textContent = alertCount;
+            document.getElementById('defense-count').textContent = defenseCount;
+            document.getElementById('fact-stream-count').textContent = `${factCount} facts`;
+            document.getElementById('inference-count').textContent = `${ruleCount} inference steps`;
+        }
+        
+        function clearFactStream() { 
+            // Clear UI
+            document.getElementById('fact-stream').innerHTML = `<div class="empty-state"><i class="fas fa-hourglass-start"></i><p>Waiting for fact updates...</p></div>`; 
+            factCount = 0; 
+            alertCount = 0;
+            defenseCount = 0;
+            updateCounts(); 
+            // Clear server-side data
+            fetch('/api/clear_defense_data', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => console.log('Server data cleared:', data))
+                .catch(err => console.error('Error clearing server data:', err));
+        }
+        function clearInference() { 
+            document.getElementById('inference-panel').innerHTML = `<div class="empty-state"><i class="fas fa-cogs"></i><p>Waiting for inference engine...</p></div>`; 
+            ruleCount = 0; 
+            updateCounts(); 
+        }
+        function exportData() { const data = { timestamp: new Date().toISOString(), stats: { factCount, ruleCount, alertCount, defenseCount }, facts, inferences }; const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `iot-guardian-defense-${Date.now()}.json`; a.click(); }
+        
+        // Load existing data when page opens
+        function loadExistingData() {
+            fetch('/api/defense_data')
+                .then(r => r.json())
+                .then(data => {
+                    // Load alerts
+                    if (data.alerts && data.alerts.length > 0) {
+                        data.alerts.forEach(alert => {
+                            alertCount++;
+                            addFactToStream({ 
+                                type: 'attack-alert', 
+                                slots: { 
+                                    'attack-type': alert.attack_type || alert.type, 
+                                    'node-id': alert.node_id || alert.node, 
+                                    'severity': alert.level || alert.severity, 
+                                    'message': alert.message 
+                                } 
+                            });
+                        });
+                    }
+                    // Load defenses
+                    if (data.defenses && data.defenses.length > 0) {
+                        data.defenses.forEach(def => {
+                            defenseCount++;
+                            addFactToStream({ 
+                                type: 'defense-action', 
+                                slots: { 
+                                    'action': def.action_type, 
+                                    'target': def.target_node, 
+                                    'description': def.description, 
+                                    'priority': def.priority 
+                                } 
+                            });
+                        });
+                    }
+                    // Load inference paths
+                    if (data.inference_paths && data.inference_paths.length > 0) {
+                        data.inference_paths.forEach(path => {
+                            addInferenceStep(path);
+                        });
+                    }
+                    // Load reasons
+                    if (data.reasons && data.reasons.length > 0) {
+                        data.reasons.forEach(reason => {
+                            addReasonExplanation(reason);
+                        });
+                    }
+                    updateCounts();
+                })
+                .catch(err => console.error('Error loading existing data:', err));
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize socket directly for this page
+            const socket = io();
+            
+            socket.on('connect', function() {
+                console.log('Defense: Connected to server');
+                document.getElementById('system-status').textContent = 'Real-time Connected';
+                document.getElementById('status-light').className = 'status-light active';
+            });
+            
+            socket.on('disconnect', function() {
+                console.log('Defense: Disconnected');
+                document.getElementById('system-status').textContent = 'Disconnected';
+                document.getElementById('status-light').className = 'status-light paused';
+            });
+            
+            // Load existing data first
+            loadExistingData();
+            
+            // Real-time event listeners
+            socket.on('new_fact', function(data) { 
+                console.log('Defense received fact:', data);
+                addFactToStream(data); 
+            });
+            socket.on('inference_path', function(data) { 
+                console.log('Defense received inference:', data);
+                addInferenceStep(data); 
+            });
+            socket.on('new_reason', function(data) { 
+                console.log('Defense received reason:', data);
+                addReasonExplanation(data); 
+            });
+            socket.on('new_alert', function(data) { 
+                console.log('Defense received alert:', data);
+                alertCount++; 
+                addFactToStream({ type: 'attack-alert', slots: { 'attack-type': data.attack_type || data.type, 'node-id': data.node_id || data.node, 'severity': data.level || data.severity, 'message': data.message } }); 
+                updateCounts(); 
+            });
+            socket.on('new_defense', function(data) { 
+                console.log('Defense received defense:', data);
+                defenseCount++; 
+                addFactToStream({ type: 'defense-action', slots: { 'action': data.action_type, 'target': data.target_node, 'description': data.description, 'priority': data.priority } }); 
+                updateCounts(); 
+            });
+            
+            socket.on('data_cleared', function(data) {
+                console.log('Defense: Data cleared by server');
+                // Clear UI
+                document.getElementById('fact-stream').innerHTML = `<div class="empty-state"><i class="fas fa-hourglass-start"></i><p>Waiting for fact updates...</p></div>`; 
+                document.getElementById('inference-panel').innerHTML = `<div class="empty-state"><i class="fas fa-cogs"></i><p>Waiting for inference engine...</p></div>`; 
+                factCount = 0; alertCount = 0; defenseCount = 0; ruleCount = 0;
+                updateCounts();
+            });
+        });
+    </script>
+</body>
+</html>

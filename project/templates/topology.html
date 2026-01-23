@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT-Guardian - Network Topology Designer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        .topology-theme { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 100%); min-height: 100vh; }
+        .topology-grid { display: grid; grid-template-columns: 1fr 420px; gap: 1.5rem; height: calc(100vh - 200px); min-height: 600px; }
+        #network-container { width: 100%; height: 100%; min-height: 450px; background: rgba(0,0,0,0.3); border-radius: 12px; border: 1px solid rgba(52,152,219,0.3); }
+        .side-panel { display: flex; flex-direction: column; gap: 0.75rem; height: 100%; overflow: hidden; }
+        .side-panel .card { display: flex; flex-direction: column; }
+        .side-panel .card .card-body { flex: 1; overflow-y: auto; padding: 0.75rem; }
+        .legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+        .legend-item { display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; color: #bdc3c7; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .legend-dot.gateway { background: #3498db; box-shadow: 0 0 6px #3498db; }
+        .legend-dot.normal { background: #2ecc71; box-shadow: 0 0 6px #2ecc71; }
+        .legend-dot.warning { background: #f39c12; box-shadow: 0 0 6px #f39c12; }
+        .legend-dot.danger { background: #e74c3c; box-shadow: 0 0 6px #e74c3c; }
+        .legend-dot.router { background: #9b59b6; box-shadow: 0 0 6px #9b59b6; }
+        /* IMPROVED: Event Log - Much larger and more visible */
+        .event-log-container { flex: 1; min-height: 250px; max-height: 350px; }
+        .attack-log { font-size: 0.85rem; height: 100%; max-height: 280px; overflow-y: auto; padding-right: 5px; }
+        .attack-log::-webkit-scrollbar { width: 6px; }
+        .attack-log::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 3px; }
+        .attack-log::-webkit-scrollbar-thumb { background: #3498db; border-radius: 3px; }
+        .log-entry { padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.4); border-radius: 6px; margin-bottom: 0.5rem; border-left: 4px solid; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+        .log-entry.alert { border-color: #f39c12; background: rgba(243,156,18,0.1); }
+        .log-entry.defense { border-color: #2ecc71; background: rgba(46,204,113,0.1); }
+        .log-entry.attack { border-color: #e74c3c; background: rgba(231,76,60,0.1); }
+        .log-entry.info { border-color: #3498db; background: rgba(52,152,219,0.1); }
+        .log-time { color: #95a5a6; font-size: 0.7rem; font-weight: bold; }
+        .log-msg { color: #ecf0f1; margin-top: 0.3rem; font-size: 0.8rem; line-height: 1.4; word-wrap: break-word; }
+        .threat-meter { padding: 0.6rem; background: rgba(0,0,0,0.3); border-radius: 6px; margin-bottom: 0.5rem; }
+        .meter-label { display: flex; justify-content: space-between; margin-bottom: 0.3rem; font-size: 0.75rem; }
+        .meter-bar { height: 6px; background: #2c3e50; border-radius: 4px; overflow: hidden; }
+        .meter-fill { height: 100%; transition: width 0.5s ease, background 0.5s ease; }
+        .meter-fill.low { background: linear-gradient(90deg, #27ae60, #2ecc71); }
+        .meter-fill.medium { background: linear-gradient(90deg, #e67e22, #f39c12); }
+        .meter-fill.high { background: linear-gradient(90deg, #c0392b, #e74c3c); }
+        .stats-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.3rem; margin-bottom: 0.5rem; }
+        .stat-mini { background: rgba(0,0,0,0.3); padding: 0.4rem; border-radius: 6px; text-align: center; }
+        .stat-mini .value { font-size: 1.1rem; font-weight: bold; }
+        .stat-mini.attacks .value { color: #e74c3c; }
+        .stat-mini.alerts .value { color: #f39c12; }
+        .stat-mini.defenses .value { color: #2ecc71; }
+        .stat-mini.nodes .value { color: #3498db; }
+        .stat-mini .label { font-size: 0.55rem; color: #7f8c8d; text-transform: uppercase; }
+        /* Node Editor Styles - Compact */
+        .node-editor { padding: 0.5rem; }
+        .editor-section { margin-bottom: 0.6rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .editor-section:last-child { border-bottom: none; margin-bottom: 0; }
+        .editor-section h4 { font-size: 0.75rem; color: #3498db; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.3rem; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; margin-bottom: 0.3rem; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-size: 0.6rem; color: #7f8c8d; margin-bottom: 0.15rem; }
+        .form-group input, .form-group select { padding: 0.3rem 0.4rem; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.4); color: #fff; font-size: 0.7rem; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #3498db; box-shadow: 0 0 5px rgba(52,152,219,0.3); }
+        .btn-row { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-top: 0.3rem; }
+        .btn-sm { padding: 0.3rem 0.5rem; border-radius: 4px; border: none; cursor: pointer; font-size: 0.65rem; display: flex; align-items: center; gap: 0.2rem; transition: all 0.2s; }
+        .btn-sm.primary { background: #3498db; color: #fff; }
+        .btn-sm.success { background: #2ecc71; color: #fff; }
+        .btn-sm.danger { background: #e74c3c; color: #fff; }
+        .btn-sm.warning { background: #f39c12; color: #000; }
+        .btn-sm:hover { transform: translateY(-1px); opacity: 0.9; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .node-list { max-height: 80px; overflow-y: auto; }
+        .node-item { display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.35rem; background: rgba(0,0,0,0.2); border-radius: 4px; margin-bottom: 0.2rem; font-size: 0.65rem; }
+        .node-item .node-info { display: flex; align-items: center; gap: 0.3rem; }
+        .node-item .node-color { width: 8px; height: 8px; border-radius: 50%; }
+        .btn-xs { padding: 0.15rem 0.25rem; font-size: 0.55rem; border-radius: 3px; border: none; cursor: pointer; }
+        .btn-xs.delete { background: #e74c3c; color: #fff; }
+        .btn-xs.delete:hover { background: #c0392b; }
+        .control-buttons { display: flex; gap: 0.3rem; }
+        /* Instruction tooltip */
+        .editor-tip { font-size: 0.6rem; color: #7f8c8d; background: rgba(0,0,0,0.2); padding: 0.3rem 0.5rem; border-radius: 4px; margin-bottom: 0.4rem; }
+        .editor-tip i { color: #3498db; margin-right: 0.3rem; }
+    </style>
+</head>
+<body class="topology-theme">
+    <nav class="navbar">
+        <div class="nav-brand"><i class="fas fa-shield-alt"></i><span>IoT-Guardian</span></div>
+        <ul class="nav-links">
+            <li><a href="/"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+            <li><a href="/hacker"><i class="fas fa-user-secret"></i> Hacker Lab</a></li>
+            <li><a href="/defense"><i class="fas fa-shield-virus"></i> Defense Center</a></li>
+            <li><a href="/topology" class="active"><i class="fas fa-project-diagram"></i> Topology</a></li>
+            <li><a href="/report"><i class="fas fa-file-alt"></i> Reports</a></li>
+        </ul>
+        <div class="nav-status"><span class="status-indicator online"></span><span id="system-status">Connecting...</span></div>
+    </nav>
+
+    <main class="dashboard-container">
+        <header class="page-header" style="background: linear-gradient(135deg, rgba(52,152,219,0.2), rgba(41,128,185,0.1)); border-color: #3498db;">
+            <h1 style="color: #3498db;"><i class="fas fa-project-diagram"></i> Network Topology Designer</h1>
+            <p>Design, visualize and monitor your IoT network with real-time attack detection</p>
+        </header>
+
+        <section class="topology-grid">
+            <div class="card" style="display: flex; flex-direction: column; height: 100%;">
+                <div class="card-header">
+                    <h2><i class="fas fa-sitemap"></i> Network Graph</h2>
+                    <div class="control-buttons">
+                        <button class="btn-sm warning" onclick="resetNodeColors()" title="Reset colors only"><i class="fas fa-palette"></i> Reset Colors</button>
+                        <button class="btn-sm primary" onclick="fitNetwork()" title="Fit to view"><i class="fas fa-compress-arrows-alt"></i> Fit</button>
+                    </div>
+                </div>
+                <div class="card-body" style="padding: 0; flex: 1; min-height: 400px; max-height: none; overflow: visible;">
+                    <div id="network-container" style="width: 100%; height: 100%; min-height: 450px;"></div>
+                </div>
+            </div>
+
+            <div class="side-panel">
+                <!-- Status Panel - Compact -->
+                <div class="card" style="flex: 0 0 auto;">
+                    <div class="card-header" style="padding: 0.5rem 0.75rem;"><h2 style="font-size: 0.9rem;"><i class="fas fa-chart-pie"></i> Status</h2></div>
+                    <div class="card-body" style="padding: 0.5rem;">
+                        <div class="threat-meter">
+                            <div class="meter-label"><span>Threat Level</span><span id="threat-level">Low</span></div>
+                            <div class="meter-bar"><div id="meter-fill" class="meter-fill low" style="width: 10%;"></div></div>
+                        </div>
+                        <div class="stats-mini">
+                            <div class="stat-mini nodes"><div class="value" id="node-count">0</div><div class="label">Nodes</div></div>
+                            <div class="stat-mini attacks"><div class="value" id="attack-count">0</div><div class="label">Attacks</div></div>
+                            <div class="stat-mini alerts"><div class="value" id="alert-count">0</div><div class="label">Alerts</div></div>
+                            <div class="stat-mini defenses"><div class="value" id="defense-count">0</div><div class="label">Defenses</div></div>
+                        </div>
+                        <div class="legend-grid">
+                            <div class="legend-item"><div class="legend-dot gateway"></div>Gateway</div>
+                            <div class="legend-item"><div class="legend-dot normal"></div>Sensor</div>
+                            <div class="legend-item"><div class="legend-dot router"></div>Router</div>
+                            <div class="legend-item"><div class="legend-dot danger"></div>Attacked</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Topology Editor Panel - Compact -->
+                <div class="card" style="flex: 0 0 auto;">
+                    <div class="card-header" style="padding: 0.5rem 0.75rem;"><h2 style="font-size: 0.9rem;"><i class="fas fa-edit"></i> Topology Editor</h2></div>
+                    <div class="card-body node-editor">
+                        <div class="editor-tip"><i class="fas fa-info-circle"></i> Double-click node to delete. Click "Add Edge" then click two nodes to connect.</div>
+                        <div class="editor-section">
+                            <h4><i class="fas fa-plus-circle"></i> Add Node</h4>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Node ID</label>
+                                    <input type="text" id="new-node-id" placeholder="e.g. sensor-003">
+                                </div>
+                                <div class="form-group">
+                                    <label>Label</label>
+                                    <input type="text" id="new-node-label" placeholder="e.g. Sensor 3">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Type</label>
+                                    <select id="new-node-type">
+                                        <option value="sensor">Sensor</option>
+                                        <option value="gateway">Gateway</option>
+                                        <option value="router">Router</option>
+                                        <option value="camera">Camera</option>
+                                        <option value="actuator">Actuator</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Connect To</label>
+                                    <select id="new-node-connect"><option value="">-- None --</option></select>
+                                </div>
+                            </div>
+                            <div class="btn-row">
+                                <button class="btn-sm success" onclick="addNode()"><i class="fas fa-plus"></i> Add Node</button>
+                                <button class="btn-sm primary" onclick="addEdgeMode()"><i class="fas fa-link"></i> Add Edge</button>
+                            </div>
+                        </div>
+                        
+                        <div class="editor-section">
+                            <h4><i class="fas fa-list"></i> Current Nodes (<span id="nodes-count">0</span>)</h4>
+                            <div id="node-list" class="node-list"></div>
+                        </div>
+                        
+                        <div class="editor-section">
+                            <h4><i class="fas fa-cogs"></i> Quick Actions</h4>
+                            <div class="btn-row">
+                                <button class="btn-sm primary" onclick="loadDefaultTopology()"><i class="fas fa-undo"></i> Default</button>
+                                <button class="btn-sm warning" onclick="clearTopologyNodes()"><i class="fas fa-trash"></i> Clear</button>
+                                <button class="btn-sm success" onclick="exportTopology()"><i class="fas fa-download"></i> Export</button>
+                                <button class="btn-sm primary" onclick="importTopology()"><i class="fas fa-upload"></i> Import</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+            </div>
+        </section>
+    </main>
+
+    <!-- Hidden file input for import -->
+    <input type="file" id="import-file" style="display:none" accept=".json" onchange="handleImport(event)">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        let network = null;
+        let nodes = null;
+        let edges = null;
+        let attackCount = 0;
+        let alertCount = 0;
+        let defenseCount = 0;
+        let addingEdge = false;
+        let edgeFromNode = null;
+        let socket = null;
+        
+        // Default topology configuration
+        const defaultNodes = [
+            { id: 'gateway-001', label: 'Gateway\n192.168.1.1', type: 'gateway' },
+            { id: 'sensor-001', label: 'Sensor 1\nTemp', type: 'sensor' },
+            { id: 'sensor-002', label: 'Sensor 2\nHumidity', type: 'sensor' },
+            { id: 'camera-001', label: 'Camera\nSecurity', type: 'camera' },
+            { id: 'actuator-001', label: 'Actuator\nController', type: 'actuator' },
+            { id: 'router-001', label: 'Router\nEdge', type: 'router' }
+        ];
+        const defaultEdges = [
+            { from: 'sensor-001', to: 'gateway-001' },
+            { from: 'sensor-002', to: 'gateway-001' },
+            { from: 'camera-001', to: 'router-001' },
+            { from: 'actuator-001', to: 'router-001' },
+            { from: 'router-001', to: 'gateway-001' }
+        ];
+        
+        // Node type configurations
+        const nodeTypes = {
+            gateway: { color: { background: '#3498db', border: '#2980b9' }, shape: 'diamond', size: 35 },
+            sensor: { color: { background: '#2ecc71', border: '#27ae60' }, shape: 'dot', size: 25 },
+            router: { color: { background: '#9b59b6', border: '#8e44ad' }, shape: 'triangle', size: 28 },
+            camera: { color: { background: '#2ecc71', border: '#27ae60' }, shape: 'dot', size: 25 },
+            actuator: { color: { background: '#2ecc71', border: '#27ae60' }, shape: 'dot', size: 25 },
+            attacked: { color: { background: '#e74c3c', border: '#c0392b' } }
+        };
+
+        function createNodeData(node) {
+            const type = node.type || 'sensor';
+            const config = nodeTypes[type] || nodeTypes.sensor;
+            return { id: node.id, label: node.label, type: type, ...config, originalColor: config.color };
+        }
+
+        function initNetwork() {
+            console.log('Topology: Initializing network...');
+            const container = document.getElementById('network-container');
+            if (!container) { console.error('Network container not found!'); return; }
+            if (typeof vis === 'undefined') {
+                console.error('vis.js library not loaded!');
+                container.innerHTML = '<p style="color: #e74c3c; text-align: center; padding: 2rem;">Error: vis.js failed to load.</p>';
+                return;
+            }
+            
+            // Load saved topology or use default
+            const savedTopology = localStorage.getItem('iot-topology');
+            let initialNodes, initialEdges;
+            if (savedTopology) {
+                try {
+                    const saved = JSON.parse(savedTopology);
+                    initialNodes = saved.nodes.map(n => createNodeData(n));
+                    initialEdges = saved.edges.map(e => ({ from: e.from, to: e.to, color: { color: '#3498db', opacity: 0.6 } }));
+                    addLogEntry('info', `Loaded ${saved.nodes.length} nodes from saved topology`);
+                } catch (e) {
+                    console.error('Error loading saved topology:', e);
+                    initialNodes = defaultNodes.map(n => createNodeData(n));
+                    initialEdges = defaultEdges.map(e => ({ from: e.from, to: e.to, color: { color: '#3498db', opacity: 0.6 } }));
+                }
+            } else {
+                initialNodes = defaultNodes.map(n => createNodeData(n));
+                initialEdges = defaultEdges.map(e => ({ from: e.from, to: e.to, color: { color: '#3498db', opacity: 0.6 } }));
+            }
+            
+            nodes = new vis.DataSet(initialNodes);
+            edges = new vis.DataSet(initialEdges);
+            const data = { nodes: nodes, edges: edges };
+            const options = {
+                physics: { enabled: true, stabilization: { iterations: 100 } },
+                nodes: { font: { color: '#ecf0f1', size: 12 }, borderWidth: 2 },
+                edges: { width: 2, smooth: { type: 'continuous' } },
+                interaction: { hover: true, tooltipDelay: 200, multiselect: true }
+            };
+            network = new vis.Network(container, data, options);
+            
+            // Click event for adding edges
+            network.on('click', function(params) {
+                if (addingEdge && params.nodes.length > 0) {
+                    const clickedNode = params.nodes[0];
+                    if (!edgeFromNode) {
+                        edgeFromNode = clickedNode;
+                        addLogEntry('info', `Edge mode: Selected source "${clickedNode}". Now click target node.`);
+                    } else {
+                        if (edgeFromNode !== clickedNode) {
+                            edges.add({ from: edgeFromNode, to: clickedNode, color: { color: '#3498db', opacity: 0.6 } });
+                            addLogEntry('defense', `✓ Edge created: ${edgeFromNode} → ${clickedNode}`);
+                            saveTopology();
+                            broadcastTopologyChange();
+                        }
+                        edgeFromNode = null;
+                        addingEdge = false;
+                    }
+                }
+            });
+            
+            // Double-click to delete node
+            network.on('doubleClick', function(params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    if (confirm(`Delete node "${nodeId}"?`)) deleteNode(nodeId);
+                }
+            });
+            
+            updateNodeList();
+            updateNodeCount();
+            updateConnectDropdown();
+            addLogEntry('info', `Network initialized with ${nodes.length} nodes`);
+        }
+
+        function addNode() {
+            const id = document.getElementById('new-node-id').value.trim();
+            const label = document.getElementById('new-node-label').value.trim();
+            const type = document.getElementById('new-node-type').value;
+            const connectTo = document.getElementById('new-node-connect').value;
+            
+            if (!id) { 
+                alert('Please enter a Node ID'); 
+                addLogEntry('alert', '⚠ Node creation failed: No ID provided');
+                return; 
+            }
+            if (nodes.get(id)) { 
+                alert('Node ID already exists!'); 
+                addLogEntry('alert', `⚠ Node "${id}" already exists`);
+                return; 
+            }
+            
+            const nodeData = createNodeData({ id, label: label || id, type });
+            nodes.add(nodeData);
+            
+            if (connectTo) {
+                edges.add({ from: id, to: connectTo, color: { color: '#3498db', opacity: 0.6 } });
+                addLogEntry('defense', `✓ Node "${id}" added and connected to "${connectTo}"`);
+            } else {
+                addLogEntry('defense', `✓ Node "${id}" (${type}) added to network`);
+            }
+            
+            document.getElementById('new-node-id').value = '';
+            document.getElementById('new-node-label').value = '';
+            updateNodeList();
+            updateNodeCount();
+            updateConnectDropdown();
+            saveTopology();
+            broadcastTopologyChange();
+        }
+        
+        function addEdgeMode() {
+            addingEdge = true;
+            edgeFromNode = null;
+            addLogEntry('info', '🔗 Edge mode activated. Click source node first, then target node.');
+        }
+        
+        function deleteNode(nodeId) {
+            nodes.remove(nodeId);
+            const connectedEdges = edges.get().filter(e => e.from === nodeId || e.to === nodeId);
+            connectedEdges.forEach(e => edges.remove(e.id));
+            updateNodeList();
+            updateNodeCount();
+            updateConnectDropdown();
+            saveTopology();
+            broadcastTopologyChange();
+            addLogEntry('attack', `🗑 Node "${nodeId}" deleted (${connectedEdges.length} edges removed)`);
+        }
+        
+        function updateNodeList() {
+            const list = document.getElementById('node-list');
+            const allNodes = nodes.get();
+            document.getElementById('nodes-count').textContent = allNodes.length;
+            list.innerHTML = allNodes.map(n => {
+                const color = n.color?.background || '#2ecc71';
+                return `<div class="node-item">
+                    <div class="node-info">
+                        <div class="node-color" style="background:${color}"></div>
+                        <span>${n.id} <small style="color:#7f8c8d">(${n.type || 'sensor'})</small></span>
+                    </div>
+                    <button class="btn-xs delete" onclick="deleteNode('${n.id}')" title="Delete node"><i class="fas fa-times"></i></button>
+                </div>`;
+            }).join('');
+        }
+        
+        function updateConnectDropdown() {
+            const select = document.getElementById('new-node-connect');
+            const allNodes = nodes.get();
+            select.innerHTML = '<option value="">-- None --</option>' + allNodes.map(n => `<option value="${n.id}">${n.id}</option>`).join('');
+        }
+        
+        function updateNodeCount() { document.getElementById('node-count').textContent = nodes.get().length; }
+
+        function markNodeAttacked(nodeId) {
+            console.log('Topology markNodeAttacked:', nodeId);
+            let node = nodes.get(nodeId);
+            if (!node) {
+                const allNodes = nodes.get();
+                for (const n of allNodes) {
+                    if (n.id.includes(nodeId) || nodeId.includes(n.id)) { node = n; nodeId = n.id; break; }
+                }
+            }
+            if (node) {
+                nodes.update({ id: nodeId, color: nodeTypes.attacked.color });
+                // Flash effect
+                setTimeout(() => nodes.update({ id: nodeId, color: { background: '#ff6b6b', border: '#c0392b' } }), 200);
+                setTimeout(() => nodes.update({ id: nodeId, color: nodeTypes.attacked.color }), 400);
+                setTimeout(() => nodes.update({ id: nodeId, color: { background: '#ff6b6b', border: '#c0392b' } }), 600);
+                setTimeout(() => nodes.update({ id: nodeId, color: nodeTypes.attacked.color }), 800);
+            }
+            updateThreatLevel();
+        }
+
+        function resetNodeColors() {
+            nodes.get().forEach(node => {
+                const type = node.type || 'sensor';
+                const config = nodeTypes[type] || nodeTypes.sensor;
+                nodes.update({ id: node.id, color: config.color });
+            });
+            addLogEntry('defense', '✓ All node colors reset to normal');
+        }
+        
+        function fitNetwork() { if (network) network.fit({ animation: true }); }
+        
+        function loadDefaultTopology() {
+            if (!confirm('Load default topology? This will replace current nodes.')) return;
+            nodes.clear();
+            edges.clear();
+            defaultNodes.forEach(n => nodes.add(createNodeData(n)));
+            defaultEdges.forEach(e => edges.add({ from: e.from, to: e.to, color: { color: '#3498db', opacity: 0.6 } }));
+            updateNodeList();
+            updateNodeCount();
+            updateConnectDropdown();
+            saveTopology();
+            broadcastTopologyChange();
+            addLogEntry('defense', '✓ Default topology loaded (6 nodes)');
+        }
+        
+        function clearTopologyNodes() {
+            if (!confirm('Clear all nodes and edges?')) return;
+            nodes.clear();
+            edges.clear();
+            updateNodeList();
+            updateNodeCount();
+            updateConnectDropdown();
+            saveTopology();
+            broadcastTopologyChange();
+            addLogEntry('attack', '🗑 All nodes and edges cleared');
+        }
+        
+        function saveTopology() {
+            const topology = {
+                nodes: nodes.get().map(n => ({ id: n.id, label: n.label, type: n.type })),
+                edges: edges.get().map(e => ({ from: e.from, to: e.to }))
+            };
+            localStorage.setItem('iot-topology', JSON.stringify(topology));
+        }
+        
+        function broadcastTopologyChange() {
+            // Notify server and other pages about topology change
+            const topology = {
+                nodes: nodes.get().map(n => ({ id: n.id, label: n.label, type: n.type })),
+                edges: edges.get().map(e => ({ from: e.from, to: e.to }))
+            };
+            fetch('/api/topology', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(topology)
+            }).catch(err => console.log('Topology broadcast error:', err));
+        }
+        
+        function exportTopology() {
+            const topology = {
+                nodes: nodes.get().map(n => ({ id: n.id, label: n.label, type: n.type })),
+                edges: edges.get().map(e => ({ from: e.from, to: e.to }))
+            };
+            const blob = new Blob([JSON.stringify(topology, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `iot-topology-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            addLogEntry('defense', '📥 Topology exported to file');
+        }
+        
+        function importTopology() { document.getElementById('import-file').click(); }
+        
+        function handleImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const topology = JSON.parse(e.target.result);
+                    nodes.clear();
+                    edges.clear();
+                    topology.nodes.forEach(n => nodes.add(createNodeData(n)));
+                    topology.edges.forEach(edge => edges.add({ from: edge.from, to: edge.to, color: { color: '#3498db', opacity: 0.6 } }));
+                    updateNodeList();
+                    updateNodeCount();
+                    updateConnectDropdown();
+                    saveTopology();
+                    broadcastTopologyChange();
+                    addLogEntry('defense', `📤 Topology imported: ${topology.nodes.length} nodes, ${topology.edges.length} edges`);
+                } catch (err) { 
+                    alert('Invalid topology file'); 
+                    addLogEntry('alert', '⚠ Failed to import topology: Invalid file format');
+                    console.error(err); 
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function addLogEntry(type, message) {
+            const log = document.getElementById('event-log');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<div class="log-time">${time}</div><div class="log-msg">${message}</div>`;
+            log.insertBefore(entry, log.firstChild);
+            // Keep more entries for better visibility
+            while (log.children.length > 50) log.removeChild(log.lastChild);
+        }
+        
+        function clearEventLog() {
+            document.getElementById('event-log').innerHTML = `
+                <div class="log-entry info">
+                    <div class="log-time">${new Date().toLocaleTimeString()}</div>
+                    <div class="log-msg">Event log cleared. Monitoring resumed...</div>
+                </div>`;
+        }
+
+        function updateStats() {
+            document.getElementById('attack-count').textContent = attackCount;
+            document.getElementById('alert-count').textContent = alertCount;
+            document.getElementById('defense-count').textContent = defenseCount;
+        }
+
+        function updateThreatLevel() {
+            const total = attackCount + alertCount;
+            let level = 'Low', percent = 10, className = 'low';
+            if (total >= 5) { level = 'Critical'; percent = 95; className = 'high'; }
+            else if (total >= 3) { level = 'High'; percent = 70; className = 'high'; }
+            else if (total >= 1) { level = 'Medium'; percent = 40; className = 'medium'; }
+            document.getElementById('threat-level').textContent = level;
+            const fill = document.getElementById('meter-fill');
+            fill.style.width = percent + '%';
+            fill.className = 'meter-fill ' + className;
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(initNetwork, 100);
+            socket = io();
+            
+            socket.on('connect', function() {
+                console.log('Topology: Connected to server');
+                document.getElementById('system-status').textContent = 'Connected';
+                addLogEntry('info', '🔌 Connected to IoT-Guardian server');
+            });
+            socket.on('disconnect', function() {
+                document.getElementById('system-status').textContent = 'Disconnected';
+                addLogEntry('alert', '⚠ Disconnected from server');
+            });
+            
+            // Load existing data
+            fetch('/api/defense_data').then(r => r.json()).then(data => {
+                console.log('Topology: Loading data', data);
+                attackCount = (data.attacks || []).length;
+                alertCount = (data.alerts || []).length;
+                defenseCount = (data.defenses || []).length;
+                updateStats();
+                updateThreatLevel();
+                
+                // Show existing alerts in log
+                if (data.alerts && data.alerts.length > 0) {
+                    data.alerts.forEach(a => {
+                        addLogEntry('alert', `🚨 ${a.attack_type}: ${a.message}`);
+                        if (a.node_id) markNodeAttacked(a.node_id);
+                    });
+                }
+                if (data.defenses && data.defenses.length > 0) {
+                    data.defenses.forEach(d => {
+                        addLogEntry('defense', `🛡 ${d.action_type}: ${d.description}`);
+                    });
+                }
+            }).catch(err => console.error('Error loading data:', err));
+
+            // Real-time events
+            socket.on('new_alert', function(data) {
+                console.log('Topology alert:', data);
+                alertCount++;
+                updateStats();
+                addLogEntry('alert', `🚨 ALERT: ${data.attack_type || data.type} - ${data.message}`);
+                if (data.node_id) markNodeAttacked(data.node_id);
+                updateThreatLevel();
+            });
+            
+            socket.on('new_defense', function(data) {
+                console.log('Topology defense:', data);
+                defenseCount++;
+                updateStats();
+                addLogEntry('defense', `🛡 DEFENSE: ${data.action_type} - ${data.description}`);
+            });
+            
+            socket.on('inference_path', function(data) {
+                addLogEntry('info', `🧠 Rule fired: ${data.rule_name}`);
+            });
+            
+            socket.on('inference_update', function(data) {
+                addLogEntry('info', `📋 ${data.message}`);
+            });
+            
+            // Listen for topology updates from other pages
+            socket.on('topology_updated', function(data) {
+                console.log('Topology update received:', data);
+                if (data && data.nodes) {
+                    localStorage.setItem('iot-topology', JSON.stringify(data));
+                    // Reload network with new topology
+                    nodes.clear();
+                    edges.clear();
+                    data.nodes.forEach(n => nodes.add(createNodeData(n)));
+                    data.edges.forEach(e => edges.add({ from: e.from, to: e.to, color: { color: '#3498db', opacity: 0.6 } }));
+                    updateNodeList();
+                    updateNodeCount();
+                    updateConnectDropdown();
+                    addLogEntry('info', `🔄 Topology synced from another page`);
+                }
+            });
+            
+            socket.on('data_cleared', function() {
+                attackCount = 0;
+                alertCount = 0;
+                defenseCount = 0;
+                updateStats();
+                updateThreatLevel();
+                resetNodeColors();
+                addLogEntry('info', '🔄 System data cleared - monitoring resumed');
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,895 @@
+"""
+IoT-Guardian: Expert System for IoT Network Security
+Main Flask Application with CLIPS Integration
+"""
+
+import os
+import json
+from datetime import datetime
+from flask import Flask, render_template, jsonify, request
+from flask_socketio import SocketIO, emit
+import clips
+
+# ===========================================
+# Flask Application Configuration
+# ===========================================
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'iot-guardian-secret-key-2024'
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# ===========================================
+# Global CLIPS Environment
+# ===========================================
+clips_env = clips.Environment()
+
+# Track last attack target for alert node_id mapping
+last_attack_target = 'gateway-001'
+
+# In-memory Fact Base for network simulation
+fact_base = {
+    'packets': [],
+    'devices': [],
+    'attacks': [],
+    'alerts': [],
+    'defenses': [],
+    'inference_paths': [],
+    'reasons': [],
+    'inference_log': []
+}
+
+# Attack history for reporting
+attack_history = []
+
+# ===========================================
+# CLIPS Utility Functions
+# ===========================================
+
+def load_clips_rules(rules_file='rules/rpl_rules.clp'):
+    """Load CLIPS rules from .clp file"""
+    global clips_env
+    try:
+        rules_path = os.path.join(os.path.dirname(__file__), rules_file)
+        clips_env.clear()
+        clips_env.load(rules_path)
+        clips_env.reset()
+        log_inference(f"Loaded rules from {rules_file}")
+        return True, "Rules loaded successfully"
+    except Exception as e:
+        error_msg = f"Error loading rules: {str(e)}"
+        log_inference(error_msg)
+        return False, error_msg
+
+
+def reset_clips_environment():
+    """Reset the CLIPS environment to initial state"""
+    global clips_env, fact_base
+    try:
+        clips_env.reset()
+        fact_base = {
+            'packets': [],
+            'devices': [],
+            'attacks': [],
+            'alerts': [],
+            'defenses': [],
+            'inference_paths': [],
+            'reasons': [],
+            'inference_log': []
+        }
+        log_inference("Environment reset to initial state")
+        return True
+    except Exception as e:
+        log_inference(f"Reset error: {str(e)}")
+        return False
+
+
+def log_inference(message):
+    """Log inference steps"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_entry = {
+        'timestamp': timestamp,
+        'message': message
+    }
+    fact_base['inference_log'].append(log_entry)
+    # Emit to connected clients via WebSocket
+    socketio.emit('inference_update', log_entry)
+
+
+def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001', **kwargs):
+    """Inject an attack indicator fact into CLIPS (RPL-based) - Based on Literature Rules"""
+    global clips_env, last_attack_target
+    # Store target for alert node_id mapping
+    last_attack_target = target
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    current_ts = int(datetime.now().timestamp()) % 10000
+    
+    # Map attack types to severity and configuration (Based on Literature)
+    attack_config = {
+        # FLSec-RPL (Reference [2])
+        'DIO-Suppression': {'severity': 'CRITICAL', 'confidence': 90, 'description': 'FLSec-RPL: DIO Neighbor Suppression Attack'},
+        # Jamming (Reference [4][5])
+        'Jamming': {'severity': 'CRITICAL', 'confidence': 85, 'description': 'Jamming: Wireless Signal Jamming Attack'},
+        # PRBA Sinkhole (Reference [7][8][9])
+        'Sinkhole': {'severity': 'CRITICAL', 'confidence': 85, 'description': 'PRBA: Sinkhole Attack - Malicious node forges low Rank to attract traffic'},
+        'Sinkhole-Bidirectional': {'severity': 'HIGH', 'confidence': 80, 'description': 'PRBA: Bidirectional Behavior Anomaly Detection'},
+        # RF Multi-Attack (Reference [10])
+        'SelectiveForwarding': {'severity': 'HIGH', 'confidence': 75, 'description': 'RF: Selective Forwarding Attack - Abnormal packet drop rate'},
+        'DoS': {'severity': 'CRITICAL', 'confidence': 90, 'description': 'RF: DoS Attack - Abnormal duplicate packet rate and forwarding rate'},
+        'RankAttack': {'severity': 'HIGH', 'confidence': 80, 'description': 'RF: Rank Attack - Rank value mismatch'},
+        # XAI Anomaly (Reference [11][13])
+        'XAI-Anomaly': {'severity': 'HIGH', 'confidence': 78, 'description': 'XAI: Isolation Forest detected anomalous behavior pattern'},
+        # UVM Voting (Reference [14][16][17])
+        'Sinkhole-UVM': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'UVM: Voting method determined Sinkhole attack'},
+        # Hybrid IDS (Reference [18]-[21])
+        'HelloFlood': {'severity': 'HIGH', 'confidence': 90, 'description': 'Hybrid: Control Message Flooding Attack (DIO/DIS/DAO)'},
+        'VersionNumber': {'severity': 'HIGH', 'confidence': 80, 'description': 'Hybrid: Version Number Attack - Forged high version to trigger DODAG reconstruction'},
+        'RankDecrease': {'severity': 'HIGH', 'confidence': 82, 'description': 'Hybrid: Rank Decrease Attack'},
+        # SRPL-RP (Reference [22][24])
+        'SRPL-Malicious': {'severity': 'CRITICAL', 'confidence': 92, 'description': 'SRPL-RP: Parent-Child Rank Violation - Block permanently'},
+        'SRPL-RankDecrease': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'SRPL-RP: Abnormal Rank Decrease'},
+        'SRPL-RankIncrease': {'severity': 'HIGH', 'confidence': 75, 'description': 'SRPL-RP: Abnormal Rank Increase'},
+        # Distributed IDS (Reference [25][26])
+        'Dist-IDS-Violation': {'severity': 'HIGH', 'confidence': 80, 'description': 'Dist-IDS: Violation count exceeded threshold'},
+        # FLBT-RPL Sybil (Reference [28])
+        'Sybil': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'FLBT-RPL: Sybil Attack - Single node forging multiple identities'}
+    }
+    
+    config = attack_config.get(attack_type, {
+        'severity': 'UNKNOWN', 
+        'confidence': 50, 
+        'description': 'Unknown attack type'
+    })
+    
+    facts_to_assert = []
+    
+    # Build attack-specific CLIPS facts based on Literature Rules
+    
+    # ========== FLSec-RPL (文献[2]) ==========
+    if attack_type == 'DIO-Suppression':
+        dio_level = kwargs.get('dio_level', 'High')
+        dti_level = kwargs.get('dti_level', 'Low')
+        stia_level = kwargs.get('stia_level', 'Low')
+        facts_to_assert.append(f'(dio-counter (node-id "{source}") (count 100) (level {dio_level}))')
+        facts_to_assert.append(f'(dti-record (node-id "{source}") (interval 0.1) (level {dti_level}))')
+        facts_to_assert.append(f'(stia-record (node-id "{source}") (value 0.2) (level {stia_level}))')
+    
+    # ========== Jamming (文献[4][5]) ==========
+    elif attack_type == 'Jamming':
+        etx_level = kwargs.get('etx_level', 'High')
+        retrans_level = kwargs.get('retrans_level', 'High')
+        facts_to_assert.append(f'(etx-record (node-id "{source}") (value 5.0) (level {etx_level}))')
+        facts_to_assert.append(f'(retransmission-record (node-id "{source}") (count 50) (level {retrans_level}))')
+    
+    # ========== PRBA Sinkhole (文献[7][8][9]) ==========
+    elif attack_type == 'Sinkhole':
+        prev_rank = kwargs.get('prev_rank', 150)
+        curr_rank = kwargs.get('curr_rank', 1)
+        facts_to_assert.append(f'(node-rank-history (node-id "{source}") (previous-rank {prev_rank}) (current-rank {curr_rank}) (timestamp {current_ts}))')
+        
+    elif attack_type == 'Sinkhole-Bidirectional':
+        parent_id = kwargs.get('parent_id', 'parent-001')
+        count = kwargs.get('count', 6)
+        facts_to_assert.append(f'(bidirectional-behavior (child-id "{source}") (parent-id "{parent_id}") (count {count}) (timestamp {current_ts}))')
+    
+    # ========== RF Multi-Attack (文献[10]) ==========
+    elif attack_type == 'SelectiveForwarding':
+        drop_rate = kwargs.get('drop_rate', 0.35)
+        threshold = kwargs.get('threshold', 0.2)
+        facts_to_assert.append(f'(pdrr-record (node-id "{source}") (rate {drop_rate}) (threshold {threshold}))')
+        
+    elif attack_type == 'DoS':
+        dpr = kwargs.get('dpr', 0.8)
+        pfr = kwargs.get('pfr', 0.9)
+        facts_to_assert.append(f'(dpr-record (node-id "{source}") (rate {dpr}) (threshold 0.5))')
+        facts_to_assert.append(f'(pfr-record (node-id "{source}") (rate {pfr}) (threshold 0.6))')
+        
+    elif attack_type == 'RankAttack':
+        prev_rank = kwargs.get('prev_rank', 200)
+        curr_rank = kwargs.get('curr_rank', 50)
+        facts_to_assert.append(f'(node-rank-history (node-id "{source}") (previous-rank {prev_rank}) (current-rank {curr_rank}) (timestamp {current_ts}))')
+    
+    # ========== XAI Anomaly (文献[11][13]) ==========
+    elif attack_type == 'XAI-Anomaly':
+        npc = kwargs.get('npc', 1.0)
+        nc = kwargs.get('nc', 2.0)
+        udp_recv = kwargs.get('udp_recv', 15.0)
+        facts_to_assert.append(f'(npc-record (node-id "{source}") (count {npc}) (timestamp {current_ts}))')
+        facts_to_assert.append(f'(nc-record (node-id "{source}") (count {nc}))')
+        facts_to_assert.append(f'(udp-received (node-id "{source}") (count {udp_recv}))')
+    
+    # ========== UVM Voting (文献[14][16][17]) ==========
+    elif attack_type == 'Sinkhole-UVM':
+        abnormal = kwargs.get('abnormal_count', 4)
+        total = kwargs.get('total_rules', 5)
+        facts_to_assert.append(f'(voting-result (node-id "{source}") (abnormal-count {abnormal}) (total-rules {total}))')
+    
+    # ========== Hybrid IDS (文献[18]-[21]) ==========
+    elif attack_type == 'HelloFlood':
+        dio_count = kwargs.get('dio_count', 50)
+        dis_count = kwargs.get('dis_count', 30)
+        dao_count = kwargs.get('dao_count', 20)
+        facts_to_assert.append(f'(control-message-counter (node-id "{source}") (dio-count {dio_count}) (dis-count {dis_count}) (dao-count {dao_count}) (dio-threshold 20) (dis-threshold 15) (dao-threshold 10))')
+            
+    elif attack_type == 'VersionNumber':
+        prev_version = kwargs.get('prev_version', 5)
+        curr_version = kwargs.get('curr_version', 15)
+        facts_to_assert.append(f'(version-record (node-id "{source}") (previous-version {prev_version}) (current-version {curr_version}) (timestamp {current_ts}))')
+        
+    elif attack_type == 'RankDecrease':
+        recv_rank = kwargs.get('recv_rank', 50)
+        avg_rank = kwargs.get('avg_rank', 200)
+        max_rank = kwargs.get('max_rank', 300)
+        k_factor = kwargs.get('k_factor', 0.3)
+        facts_to_assert.append(f'(neighbor-rank-stats (node-id "{source}") (received-rank {recv_rank}) (avg-neighbor-rank {avg_rank}) (max-neighbor-rank {max_rank}) (k-factor {k_factor}))')
+    
+    # ========== SRPL-RP (文献[22][24]) ==========
+    elif attack_type == 'SRPL-Malicious':
+        ncr = kwargs.get('ncr', 100)
+        npr = kwargs.get('npr', 150)
+        facts_to_assert.append(f'(srpl-rank-check (node-id "{source}") (ncr {ncr}) (npr {npr}) (nor 120) (msr 130) (mcr 140) (pst 10))')
+        
+    elif attack_type == 'SRPL-RankDecrease':
+        ncr = kwargs.get('ncr', 80)
+        nor = kwargs.get('nor', 150)
+        msr = kwargs.get('msr', 120)
+        pst = kwargs.get('pst', 20)
+        facts_to_assert.append(f'(srpl-rank-check (node-id "{source}") (ncr {ncr}) (npr 200) (nor {nor}) (msr {msr}) (mcr 180) (pst {pst}))')
+        
+    elif attack_type == 'SRPL-RankIncrease':
+        ncr = kwargs.get('ncr', 200)
+        nor = kwargs.get('nor', 150)
+        mcr = kwargs.get('mcr', 180)
+        facts_to_assert.append(f'(srpl-rank-check (node-id "{source}") (ncr {ncr}) (npr 100) (nor {nor}) (msr 160) (mcr {mcr}) (pst 10))')
+    
+    # ========== Distributed IDS (文献[25][26]) ==========
+    elif attack_type == 'Dist-IDS-Violation':
+        violation_count = kwargs.get('violation_count', 6)
+        threshold = kwargs.get('threshold', 5)
+        facts_to_assert.append(f'(violation-counter (node-id "{source}") (count {violation_count}) (threshold {threshold}) (time-window 30))')
+    
+    # ========== FLBT-RPL Sybil (文献[28]) ==========
+    elif attack_type == 'Sybil':
+        ics = kwargs.get('ics', 0.9)
+        scs = kwargs.get('scs', 0.8)
+        res = kwargs.get('res', 0.7)
+        rms = kwargs.get('rms', 0.85)
+        bis = kwargs.get('bis', 0.75)
+        tds = kwargs.get('tds', 0.6)
+        facts_to_assert.append(f'(sybil-indicators (node-id "{source}") (ics {ics}) (scs {scs}) (res {res}) (rms {rms}) (bis {bis}) (tds {tds}) (ics-threshold 0.7) (scs-threshold 0.7) (res-threshold 0.7) (rms-threshold 0.7) (bis-threshold 0.7) (tds-threshold 0.7))')
+    
+    else:
+        # Generic fallback
+        facts_to_assert.append(f'(rpl-packet (node-id "{source}") (rank 100) (packet-type "DIO"))')
+    
+    try:
+        # Assert all facts in CLIPS
+        for fact_str in facts_to_assert:
+            clips_env.assert_string(fact_str)
+            log_inference(f"Asserted fact: {fact_str[:80]}...")
+        
+        log_inference(f"Injected {attack_type} attack facts from {source}")
+        
+        # Store in fact base
+        attack_record = {
+            'type': attack_type,
+            'source': source,
+            'target': target,
+            'severity': config['severity'],
+            'confidence': config['confidence'],
+            'description': config['description'],
+            'timestamp': timestamp
+        }
+        fact_base['attacks'].append(attack_record)
+        attack_history.append(attack_record)
+        
+        return True, attack_record
+    except Exception as e:
+        error_msg = f"Error injecting attack: {str(e)}"
+        log_inference(error_msg)
+        return False, error_msg
+
+
+def run_inference():
+    """Run the CLIPS inference engine"""
+    global clips_env
+    try:
+        log_inference("Starting inference engine...")
+        rules_fired = clips_env.run()
+        log_inference(f"Inference complete. Rules fired: {rules_fired}")
+        
+        # Collect results
+        collect_inference_results()
+        
+        return True, rules_fired
+    except Exception as e:
+        error_msg = f"Inference error: {str(e)}"
+        log_inference(error_msg)
+        return False, 0
+
+
+def collect_inference_results():
+    """Collect facts generated by inference (RPL rules)"""
+    global clips_env, fact_base
+    
+    # Collect new results without clearing (add to existing)
+    new_alerts = []
+    new_defenses = []
+    new_paths = []
+    new_reasons = []
+    
+    # Use a running counter based on existing items to generate unique IDs
+    # This ensures each attack generates unique IDs even after CLIPS reset
+    base_alert_id = len(fact_base.get('alerts', []))
+    base_defense_id = len(fact_base.get('defenses', []))
+    base_path_id = len(fact_base.get('inference_paths', []))
+    
+    # Use timestamp to allow same attack type on same node at different times
+    current_timestamp = datetime.now().strftime("%H:%M:%S")
+    
+    # Track (node_id, attack_type, timestamp) - allow repeated attacks at different times
+    # But avoid duplicates within the SAME attack (CLIPS may generate multiple facts)
+    session_alert_keys = set()
+    session_defense_keys = set()
+    session_path_keys = set()
+    
+    try:
+        fact_count = 0
+        for fact in clips_env.facts():
+            fact_str = str(fact)
+            fact_count += 1
+            
+            # Parse attack-alert facts (RPL rules)
+            if 'attack-alert' in fact_str:
+                alert = parse_attack_alert_fact(fact)
+                if alert:
+                    # Use message as part of key to differentiate attacks with different parameters
+                    alert_key = (alert.get('node_id', ''), alert.get('attack_type', ''), alert.get('message', '')[:50])
+                    if alert_key not in session_alert_keys:
+                        # Assign unique ID based on running count
+                        alert['alert_id'] = base_alert_id + len(new_alerts) + 1
+                        alert['timestamp'] = current_timestamp
+                        new_alerts.append(alert)
+                        session_alert_keys.add(alert_key)
+                        log_inference(f"Found new alert: {alert.get('attack_type')} for node {alert.get('node_id')}")
+            
+            # Parse defense-action facts
+            elif 'defense-action' in fact_str:
+                defense = parse_defense_fact(fact)
+                if defense:
+                    # Include description to differentiate same action type with different details
+                    defense_key = (defense.get('target_node', ''), defense.get('action_type', ''), defense.get('description', '')[:50])
+                    if defense_key not in session_defense_keys:
+                        # Assign unique ID based on running count
+                        defense['defense_id'] = base_defense_id + len(new_defenses) + 1
+                        defense['timestamp'] = current_timestamp
+                        new_defenses.append(defense)
+                        session_defense_keys.add(defense_key)
+                        log_inference(f"Found new defense: {defense.get('action_type')} for node {defense.get('target_node')}")
+            
+            # Parse inference-path facts
+            elif 'inference-path' in fact_str:
+                path = parse_inference_path_fact(fact)
+                if path:
+                    # Include trigger condition to differentiate paths
+                    path_key = (path.get('rule_name', ''), path.get('node_id', ''), path.get('trigger_condition', '')[:30])
+                    if path_key not in session_path_keys:
+                        path['step_id'] = base_path_id + len(new_paths) + 1
+                        new_paths.append(path)
+                        session_path_keys.add(path_key)
+                        log_inference(f"Found new inference path: {path.get('rule_name')}")
+            
+            # Parse reason facts
+            elif '(reason' in fact_str:
+                reason = parse_reason_fact(fact)
+                if reason:
+                    new_reasons.append(reason)
+                    log_inference(f"Found new reason: {reason.get('attack_type')}")
+        
+        log_inference(f"Scanned {fact_count} facts, found {len(new_alerts)} alerts, {len(new_defenses)} defenses, {len(new_paths)} paths, {len(new_reasons)} reasons")
+        
+        # Add new items to fact_base
+        fact_base['alerts'].extend(new_alerts)
+        fact_base['defenses'].extend(new_defenses)
+        fact_base['inference_paths'].extend(new_paths)
+        fact_base['reasons'].extend(new_reasons)
+        
+        # Emit ONLY new results via WebSocket
+        for alert in new_alerts:
+            log_inference(f"Emitting alert with node_id: {alert.get('node_id')}")
+            socketio.emit('new_alert', alert, namespace='/')
+        for defense in new_defenses:
+            log_inference(f"Emitting defense: {defense.get('action_type')}")
+            socketio.emit('new_defense', defense, namespace='/')
+        for path in new_paths:
+            log_inference(f"Emitting inference_path: {path.get('rule_name')}")
+            socketio.emit('inference_path', path, namespace='/')
+        for reason in new_reasons:
+            log_inference(f"Emitting reason: {reason.get('explanation')[:50]}...")
+            socketio.emit('new_reason', reason, namespace='/')
+                    
+    except Exception as e:
+        log_inference(f"Error collecting results: {str(e)}")
+
+
+def parse_attack_alert_fact(fact):
+    """Parse an attack-alert fact into dictionary (RPL rules)"""
+    global last_attack_target
+    try:
+        node_id = str(fact['node-id']) if hasattr(fact, '__getitem__') else 'N/A'
+        
+        # Use last attack target if available, otherwise try mapping
+        if hasattr(parse_attack_alert_fact, 'last_target') and parse_attack_alert_fact.last_target:
+            display_node = parse_attack_alert_fact.last_target
+        elif 'last_attack_target' in globals() and last_attack_target:
+            display_node = last_attack_target
+        else:
+            # Fallback: Map common attack node IDs to topology node IDs
+            topology_node_map = {
+                'malicious-node-001': 'gateway-001',
+                'compromised-sensor': 'sensor-001',
+                'rogue-device': 'router-001',
+                'external-attacker': 'gateway-001'
+            }
+            display_node = topology_node_map.get(node_id, node_id)
+            if display_node not in ['gateway-001', 'sensor-001', 'sensor-002', 'camera-001', 'actuator-001', 'router-001']:
+                display_node = 'gateway-001'  # Default to gateway for visualization
+        
+        return {
+            'alert_id': fact['alert-id'] if hasattr(fact, '__getitem__') else 0,
+            'level': str(fact['severity']) if hasattr(fact, '__getitem__') else 'UNKNOWN',
+            'attack_type': str(fact['attack-type']) if hasattr(fact, '__getitem__') else 'UNKNOWN',
+            'node_id': display_node,
+            'source_node': node_id,
+            'message': str(fact['message']) if hasattr(fact, '__getitem__') else str(fact),
+            'timestamp': str(fact['timestamp']) if hasattr(fact, '__getitem__') else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+    except:
+        fact_str = str(fact)
+        return {
+            'alert_id': 0,
+            'level': 'INFO',
+            'attack_type': 'UNKNOWN',
+            'node_id': 'gateway-001',
+            'source_node': 'N/A',
+            'message': fact_str,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+
+def parse_inference_path_fact(fact):
+    """Parse an inference-path fact into dictionary (推理路径)"""
+    try:
+        return {
+            'step_id': fact['step-id'] if hasattr(fact, '__getitem__') else 0,
+            'rule_name': str(fact['rule-name']) if hasattr(fact, '__getitem__') else 'UNKNOWN',
+            'trigger_condition': str(fact['trigger-condition']) if hasattr(fact, '__getitem__') else '',
+            'conclusion': str(fact['conclusion']) if hasattr(fact, '__getitem__') else '',
+            'node_id': str(fact['node-id']) if hasattr(fact, '__getitem__') else 'N/A',
+            'timestamp': str(fact['timestamp']) if hasattr(fact, '__getitem__') else ''
+        }
+    except:
+        fact_str = str(fact)
+        return {
+            'step_id': 0,
+            'rule_name': 'UNKNOWN',
+            'trigger_condition': fact_str,
+            'conclusion': '',
+            'node_id': 'N/A',
+            'timestamp': ''
+        }
+
+
+def parse_reason_fact(fact):
+    """Parse a reason fact into dictionary (原因解释)"""
+    try:
+        return {
+            'attack_type': str(fact['attack-type']) if hasattr(fact, '__getitem__') else 'UNKNOWN',
+            'node_id': str(fact['node-id']) if hasattr(fact, '__getitem__') else 'N/A',
+            'explanation': str(fact['explanation']) if hasattr(fact, '__getitem__') else '',
+            'evidence': str(fact['evidence']) if hasattr(fact, '__getitem__') else ''
+        }
+    except:
+        fact_str = str(fact)
+        return {
+            'attack_type': 'UNKNOWN',
+            'node_id': 'N/A',
+            'explanation': fact_str,
+            'evidence': ''
+        }
+
+
+def parse_alert_fact(fact):
+    """Parse a system-alert fact into dictionary"""
+    try:
+        return {
+            'alert_id': fact['alert-id'] if hasattr(fact, '__getitem__') else 0,
+            'level': str(fact['alert-level']) if hasattr(fact, '__getitem__') else 'UNKNOWN',
+            'message': str(fact['message']) if hasattr(fact, '__getitem__') else str(fact),
+            'timestamp': str(fact['timestamp']) if hasattr(fact, '__getitem__') else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+    except:
+        # Fallback parsing from string representation
+        fact_str = str(fact)
+        return {
+            'alert_id': 0,
+            'level': 'INFO',
+            'message': fact_str,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+
+def parse_defense_fact(fact):
+    """Parse a defense-action fact into dictionary"""
+    try:
+        return {
+            'action_id': fact['action-id'] if hasattr(fact, '__getitem__') else 0,
+            'action_type': str(fact['action-type']) if hasattr(fact, '__getitem__') else 'UNKNOWN',
+            'target': str(fact['target-node']) if hasattr(fact, '__getitem__') else 'N/A',
+            'priority': str(fact['priority']) if hasattr(fact, '__getitem__') else 'MEDIUM',
+            'description': str(fact['description']) if hasattr(fact, '__getitem__') else str(fact),
+            'status': 'pending'
+        }
+    except:
+        fact_str = str(fact)
+        return {
+            'action_id': 0,
+            'action_type': 'GENERIC',
+            'target': 'N/A',
+            'priority': 'MEDIUM',
+            'description': fact_str,
+            'status': 'pending'
+        }
+
+
+def simulate_network_packets(count=5):
+    """Simulate network packets for the fact base"""
+    import random
+    
+    protocols = ['TCP', 'UDP', 'MQTT', 'CoAP', 'HTTP']
+    ips = ['192.168.1.10', '192.168.1.11', '192.168.1.20', '192.168.1.30', '192.168.1.1']
+    
+    packets = []
+    for i in range(count):
+        packet = {
+            'packet_id': i + 1,
+            'source_ip': random.choice(ips),
+            'dest_ip': random.choice(ips),
+            'protocol': random.choice(protocols),
+            'port': random.choice([80, 443, 1883, 5683, 8080]),
+            'payload_size': random.randint(64, 1500),
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'packet_type': random.choice(['DATA', 'CONTROL', 'HEARTBEAT'])
+        }
+        packets.append(packet)
+    
+    fact_base['packets'] = packets
+    return packets
+
+
+# ===========================================
+# Flask Routes
+# ===========================================
+
+@app.route('/')
+def dashboard():
+    """Dashboard - Main monitoring view"""
+    return render_template('dashboard.html')
+
+
+@app.route('/hacker')
+def hacker():
+    """Hacker Simulator - Attack injection interface"""
+    return render_template('hacker.html')
+
+
+@app.route('/defense')
+def defense():
+    """Defense View - Inference and recommendations display"""
+    return render_template('defense.html')
+
+
+@app.route('/report')
+def report():
+    """Report View - Diagnostic reports"""
+    return render_template('report.html')
+
+
+@app.route('/topology')
+def topology():
+    """Network Topology Visualization"""
+    return render_template('topology.html')
+
+
+# ===========================================
+# API Endpoints
+# ===========================================
+
+@app.route('/api/status', methods=['GET'])
+def api_status():
+    """Get system status"""
+    return jsonify({
+        'status': 'online',
+        'facts_count': len(list(clips_env.facts())),
+        'attacks_detected': len(fact_base['attacks']),
+        'alerts_count': len(fact_base['alerts']),
+        'defenses_count': len(fact_base['defenses'])
+    })
+
+
+@app.route('/api/defense_data', methods=['GET'])
+def api_defense_data():
+    """Get all defense data (alerts, defenses, inference paths, reasons)"""
+    return jsonify({
+        'alerts': fact_base.get('alerts', []),
+        'defenses': fact_base.get('defenses', []),
+        'inference_paths': fact_base.get('inference_paths', []),
+        'reasons': fact_base.get('reasons', []),
+        'attacks': fact_base.get('attacks', [])
+    })
+
+
+@app.route('/api/clear_defense_data', methods=['POST'])
+def api_clear_defense_data():
+    """Clear all defense data from fact_base"""
+    global fact_base
+    fact_base['alerts'] = []
+    fact_base['defenses'] = []
+    fact_base['inference_paths'] = []
+    fact_base['reasons'] = []
+    fact_base['attacks'] = []
+    fact_base['inference_log'] = []
+    # Also reset CLIPS environment
+    reset_clips_environment()
+    load_clips_rules()
+    # Notify all clients
+    socketio.emit('data_cleared', {'message': 'All data cleared'}, namespace='/')
+    return jsonify({'success': True, 'message': 'Defense data cleared'})
+
+
+@app.route('/api/topology', methods=['GET', 'POST'])
+def api_topology():
+    """Get or update network topology - syncs across all pages"""
+    if request.method == 'POST':
+        data = request.get_json()
+        # Broadcast topology update to all clients
+        socketio.emit('topology_updated', data, namespace='/')
+        return jsonify({'success': True, 'message': 'Topology updated'})
+    # GET: Return current topology (stored in localStorage on clients)
+    return jsonify({'success': True, 'message': 'Use localStorage for topology'})
+
+
+@app.route('/api/load_rules', methods=['POST'])
+def api_load_rules():
+    """Load CLIPS rules"""
+    success, message = load_clips_rules()
+    return jsonify({'success': success, 'message': message})
+
+
+@app.route('/api/reset', methods=['POST'])
+def api_reset():
+    """Reset the expert system"""
+    success = reset_clips_environment()
+    load_clips_rules()
+    return jsonify({'success': success, 'message': 'System reset complete'})
+
+
+@app.route('/inject_attack', methods=['POST'])
+def inject_attack():
+    """
+    API endpoint to inject an attack
+    Receives attack type from frontend, converts to CLIPS facts, runs inference
+    """
+    global clips_env
+    data = request.get_json()
+    attack_type = data.get('attack_type', 'Sinkhole')
+    source = data.get('source', 'malicious-node-001')
+    target = data.get('target', 'gateway-001')
+    
+    # CRITICAL FIX: Clear CLIPS completely and reload rules before each attack
+    # This ensures rules can fire again for new attacks
+    try:
+        clips_env.clear()
+        rules_path = os.path.join(os.path.dirname(__file__), 'rules/rpl_rules.clp')
+        clips_env.load(rules_path)
+        clips_env.reset()
+        log_inference(f"CLIPS environment cleared and reset for new attack: {attack_type}")
+    except Exception as e:
+        log_inference(f"Warning: Could not reset CLIPS: {e}")
+    
+    # Get optional parameters for RPL attacks
+    kwargs = {}
+    if attack_type == 'Sinkhole':
+        kwargs['prev_rank'] = data.get('prev_rank', 150)
+        kwargs['curr_rank'] = data.get('curr_rank', 1)
+    elif attack_type == 'HelloFlood':
+        kwargs['hello_count'] = data.get('hello_count', 25)
+        kwargs['dio_count'] = data.get('dio_count', 50)
+        kwargs['dis_count'] = data.get('dis_count', 30)
+        kwargs['dao_count'] = data.get('dao_count', 20)
+    elif attack_type == 'VersionNumber':
+        kwargs['prev_version'] = data.get('prev_version', 5)
+        kwargs['curr_version'] = data.get('curr_version', 15)
+    elif attack_type == 'SelectiveForwarding':
+        kwargs['drop_rate'] = data.get('drop_rate', 0.35)
+    elif attack_type == 'Sybil':
+        kwargs['ics'] = data.get('ics', 0.9)
+        kwargs['scs'] = data.get('scs', 0.8)
+    
+    # Validate attack parameters and generate warnings if attack won't be effective
+    warnings = []
+    if attack_type == 'Sinkhole':
+        prev_rank = kwargs.get('prev_rank', 150)
+        curr_rank = kwargs.get('curr_rank', 1)
+        # Rule requires: curr_rank < prev_rank / 2
+        if curr_rank >= prev_rank / 2:
+            warnings.append(f"⚠️ Ineffective Attack: Forged Rank ({curr_rank}) must be less than half of Original Rank ({prev_rank}/2 = {prev_rank//2}) to trigger detection rules.")
+            warnings.append(f"💡 Suggestion: Set Forged Rank to a value less than {prev_rank//2} (e.g., 1 or {max(1, prev_rank//4)}).")
+    elif attack_type == 'HelloFlood':
+        dio_count = kwargs.get('dio_count', 50)
+        dio_threshold = 20
+        if dio_count <= dio_threshold:
+            warnings.append(f"⚠️ Ineffective Attack: DIO count ({dio_count}) must exceed threshold ({dio_threshold}) to trigger detection.")
+    elif attack_type == 'VersionNumber':
+        prev_version = kwargs.get('prev_version', 5)
+        curr_version = kwargs.get('curr_version', 15)
+        if curr_version <= prev_version:
+            warnings.append(f"⚠️ Ineffective Attack: Forged Version ({curr_version}) must be greater than Original Version ({prev_version}).")
+    
+    # Inject the attack fact
+    success, result = inject_attack_fact(attack_type, source, target, **kwargs)
+    
+    if success:
+        # Run inference engine
+        inf_success, rules_fired = run_inference()
+        
+        response = {
+            'success': True,
+            'attack': result,
+            'rules_fired': rules_fired,
+            'alerts': fact_base['alerts'],
+            'defenses': fact_base['defenses'],
+            'inference_paths': fact_base.get('inference_paths', []),
+            'reasons': fact_base.get('reasons', [])
+        }
+        
+        # Add warnings if attack parameters won't trigger rules
+        if warnings:
+            response['warnings'] = warnings
+            response['attack_effective'] = False
+        else:
+            response['attack_effective'] = rules_fired > 0
+        
+        return jsonify(response)
+    else:
+        return jsonify({
+            'success': False,
+            'error': result
+        }), 400
+
+
+@app.route('/api/facts', methods=['GET'])
+def api_get_facts():
+    """Get all current facts"""
+    facts = []
+    try:
+        for fact in clips_env.facts():
+            facts.append(str(fact))
+    except Exception as e:
+        pass
+    
+    return jsonify({
+        'clips_facts': facts,
+        'fact_base': fact_base
+    })
+
+
+@app.route('/api/inference_log', methods=['GET'])
+def api_inference_log():
+    """Get inference log"""
+    return jsonify({
+        'log': fact_base['inference_log']
+    })
+
+
+@app.route('/api/simulate_packets', methods=['POST'])
+def api_simulate_packets():
+    """Simulate network packets"""
+    count = request.get_json().get('count', 5) if request.get_json() else 5
+    packets = simulate_network_packets(count)
+    return jsonify({
+        'success': True,
+        'packets': packets
+    })
+
+
+@app.route('/api/attack_history', methods=['GET'])
+def api_attack_history():
+    """Get attack history for reports"""
+    return jsonify({
+        'history': attack_history,
+        'total_attacks': len(attack_history),
+        'alerts': fact_base['alerts'],
+        'defenses': fact_base['defenses']
+    })
+
+
+@app.route('/api/generate_report', methods=['GET'])
+def api_generate_report():
+    """Generate diagnostic report"""
+    report = {
+        'generated_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'summary': {
+            'total_attacks': len(attack_history),
+            'total_alerts': len(fact_base['alerts']),
+            'total_defenses': len(fact_base['defenses']),
+            'critical_alerts': len([a for a in fact_base['alerts'] if a.get('level') == 'CRITICAL']),
+            'high_priority_defenses': len([d for d in fact_base['defenses'] if d.get('priority') == 'HIGH' or d.get('priority') == 'CRITICAL'])
+        },
+        'attack_breakdown': {},
+        'attacks': attack_history,
+        'alerts': fact_base['alerts'],
+        'defenses': fact_base['defenses'],
+        'inference_log': fact_base['inference_log'][-20:]  # Last 20 entries
+    }
+    
+    # Count attacks by type
+    for attack in attack_history:
+        attack_type = attack.get('type', 'Unknown')
+        report['attack_breakdown'][attack_type] = report['attack_breakdown'].get(attack_type, 0) + 1
+    
+    return jsonify(report)
+
+
+# ===========================================
+# WebSocket Events
+# ===========================================
+
+@socketio.on('connect')
+def handle_connect():
+    """Handle client connection"""
+    emit('connected', {'status': 'Connected to IoT-Guardian'})
+    log_inference("New client connected")
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection"""
+    log_inference("Client disconnected")
+
+
+@socketio.on('request_status')
+def handle_status_request():
+    """Handle status request via WebSocket"""
+    emit('status_update', {
+        'attacks': len(fact_base['attacks']),
+        'alerts': len(fact_base['alerts']),
+        'defenses': len(fact_base['defenses'])
+    })
+
+
+# ===========================================
+# Application Initialization
+# ===========================================
+
+def initialize_app():
+    """Initialize the application on startup"""
+    print("=" * 50)
+    print("  IoT-Guardian Expert System")
+    print("  Initializing...")
+    print("=" * 50)
+    
+    # Load CLIPS rules
+    success, message = load_clips_rules()
+    print(f"  Rules: {message}")
+    
+    # Initialize fact base with simulated data
+    simulate_network_packets(10)
+    print("  Network packets simulated")
+    
+    print("=" * 50)
+    print("  System Ready!")
+    print("=" * 50)
+
+
+if __name__ == '__main__':
+    initialize_app()
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
