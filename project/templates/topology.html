@@ -449,50 +449,65 @@
         
         function updateNodeCount() { document.getElementById('node-count').textContent = nodes.get().length; }
 
-        // Severity-based color mapping based on defense action types
-        // BLOCK_PERMANENT → Red (Malicious), QUARANTINE → Orange, VICTIM → Purple, else → Warning Yellow
-        function getNodeColorBySeverity(actionType, level) {
+        // Severity-based color mapping based on defense action types and alert levels
+        // Priority: action_type > attack_type > level
+        // BLOCK_PERMANENT/Malicious → Red, QUARANTINE → Orange, VICTIM → Purple, else → Warning Yellow
+        function getNodeColorBySeverity(actionType, level, attackType) {
             const actionUpper = (actionType || '').toUpperCase();
             const levelUpper = (level || '').toUpperCase();
+            const attackUpper = (attackType || '').toUpperCase();
             
-            // Check action type first (from defense-action) - highest priority
-            if (actionUpper.includes('BLOCK_PERMANENT') || actionUpper.includes('MALICIOUS')) {
+            console.log('getNodeColorBySeverity - action:', actionUpper, 'level:', levelUpper, 'attack:', attackUpper);
+            
+            // 1. Check action type first (from defense-action) - highest priority
+            if (actionUpper.includes('BLOCK_PERMANENT') || actionUpper.includes('BLOCK-PERMANENT')) {
+                console.log('  -> Returning RED (BLOCK_PERMANENT)');
                 return nodeTypes.attacked;  // Red
             }
             if (actionUpper.includes('QUARANTINE') || actionUpper.includes('ISOLATE')) {
+                console.log('  -> Returning ORANGE (QUARANTINE)');
                 return nodeTypes.quarantine;  // Orange
             }
             if (actionUpper.includes('VICTIM') || actionUpper.includes('SUPPRESSED')) {
+                console.log('  -> Returning PURPLE (VICTIM)');
                 return nodeTypes.victim;  // Purple
-            }
-            if (actionUpper.includes('BLOCK_TEMPORARY')) {
-                return nodeTypes.quarantine;  // Orange
             }
             
-            // Check alert level (from attack-alert)
-            // Only CRITICAL is Red, HIGH/MEDIUM is Orange (may need quarantine observation)
-            if (levelUpper === 'CRITICAL' || levelUpper === 'MALICIOUS') {
-                return nodeTypes.attacked;  // Red - confirmed malicious
+            // 2. Check attack type (from attack-alert attack_type field)
+            if (attackUpper.includes('MALICIOUS') || attackUpper.includes('-MALICIOUS')) {
+                console.log('  -> Returning RED (attack type MALICIOUS)');
+                return nodeTypes.attacked;  // Red
             }
-            if (levelUpper === 'HIGH' || levelUpper === 'QUARANTINE' || levelUpper === 'SUSPICIOUS') {
-                return nodeTypes.quarantine;  // Orange - requires observation/quarantine
+            if (attackUpper.includes('QUARANTINE')) {
+                console.log('  -> Returning ORANGE (attack type QUARANTINE)');
+                return nodeTypes.quarantine;  // Orange
             }
-            if (levelUpper === 'MEDIUM') {
-                return nodeTypes.warning;  // Yellow - monitor
-            }
-            if (levelUpper === 'VICTIM') {
+            if (attackUpper.includes('VICTIM')) {
+                console.log('  -> Returning PURPLE (attack type VICTIM)');
                 return nodeTypes.victim;  // Purple
             }
-            if (levelUpper === 'WARNING' || levelUpper === 'LOW') {
-                return nodeTypes.warning;  // Yellow
+            
+            // 3. Check alert level (from attack-alert severity field)
+            if (levelUpper === 'CRITICAL') {
+                console.log('  -> Returning RED (level CRITICAL)');
+                return nodeTypes.attacked;  // Red - confirmed malicious/critical
+            }
+            if (levelUpper === 'HIGH') {
+                console.log('  -> Returning ORANGE (level HIGH)');
+                return nodeTypes.quarantine;  // Orange - high risk, needs observation
+            }
+            if (levelUpper === 'MEDIUM') {
+                console.log('  -> Returning YELLOW (level MEDIUM)');
+                return nodeTypes.warning;  // Yellow - monitor
             }
             
             // Default to warning (yellow) for unknown levels
+            console.log('  -> Returning YELLOW (default)');
             return nodeTypes.warning;
         }
 
-        function markNodeAttacked(nodeId, actionType, level) {
-            console.log('Topology markNodeAttacked:', nodeId, 'actionType:', actionType, 'level:', level);
+        function markNodeAttacked(nodeId, actionType, level, attackType) {
+            console.log('Topology markNodeAttacked:', nodeId, 'actionType:', actionType, 'level:', level, 'attackType:', attackType);
             let node = nodes.get(nodeId);
             if (!node) {
                 const allNodes = nodes.get();
@@ -501,8 +516,8 @@
                 }
             }
             if (node) {
-                // Get color based on severity/action type
-                const colorConfig = getNodeColorBySeverity(actionType, level);
+                // Get color based on severity/action type/attack type
+                const colorConfig = getNodeColorBySeverity(actionType, level, attackType);
                 const targetColor = colorConfig.color;
                 const flashColor = colorConfig === nodeTypes.attacked 
                     ? { background: '#ff6b6b', border: '#c0392b' }  // Red flash
@@ -512,6 +527,7 @@
                     ? { background: '#bb8fce', border: '#8e44ad' }  // Purple flash
                     : { background: '#f7dc6f', border: '#d4ac0d' }; // Yellow flash
                 
+                console.log('Updating node color to:', targetColor);
                 nodes.update({ id: nodeId, color: targetColor });
                 // Flash effect
                 setTimeout(() => nodes.update({ id: nodeId, color: flashColor }), 200);
@@ -703,16 +719,18 @@
                 updateStats();
                 updateThreatLevel();
                 
-                // Show existing alerts in log
+                // Show existing alerts in log and mark nodes
                 if (data.alerts && data.alerts.length > 0) {
                     data.alerts.forEach(a => {
                         addLogEntry('alert', `🚨 ${a.attack_type}: ${a.message}`);
-                        if (a.node_id) markNodeAttacked(a.node_id);
+                        if (a.node_id) markNodeAttacked(a.node_id, a.action_type, a.level, a.attack_type);
                     });
                 }
                 if (data.defenses && data.defenses.length > 0) {
                     data.defenses.forEach(d => {
                         addLogEntry('defense', `🛡 ${d.action_type}: ${d.description}`);
+                        // Also mark node based on defense action
+                        if (d.target) markNodeAttacked(d.target, d.action_type, d.priority, null);
                     });
                 }
             }).catch(err => console.error('Error loading data:', err));
@@ -723,8 +741,8 @@
                 alertCount++;
                 updateStats();
                 addLogEntry('alert', `🚨 ALERT: ${data.attack_type || data.type} - ${data.message}`);
-                // Pass level/action_type for color differentiation
-                if (data.node_id) markNodeAttacked(data.node_id, data.action_type, data.level);
+                // Pass action_type, level, and attack_type for color differentiation
+                if (data.node_id) markNodeAttacked(data.node_id, data.action_type, data.level, data.attack_type);
                 updateThreatLevel();
             });
             
@@ -734,8 +752,9 @@
                 updateStats();
                 addLogEntry('defense', `🛡 DEFENSE: ${data.action_type} - ${data.description}`);
                 // Also mark node with defense action type for correct color
+                // Pass all 4 parameters: nodeId, actionType, level, attackType
                 if (data.target_node || data.target) {
-                    markNodeAttacked(data.target_node || data.target, data.action_type, null);
+                    markNodeAttacked(data.target_node || data.target, data.action_type, data.priority || data.level, data.attack_type);
                 }
             });
             

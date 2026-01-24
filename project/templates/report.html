@@ -100,16 +100,20 @@
             <h2 class="report-title">Security Incident Diagnostic Report</h2>
             <p class="report-subtitle">RPL Protocol Attack Detection and Defense Analysis</p>
             <div class="report-meta">
-                <div class="meta-item"><div class="meta-label">Report ID</div><div class="meta-value" id="report-id">IOT-2024-001</div></div>
+                <div class="meta-item"><div class="meta-label">Report ID</div><div class="meta-value" id="report-id">IOT-2026-001</div></div>
                 <div class="meta-item"><div class="meta-label">Generated At</div><div class="meta-value" id="report-time">--</div></div>
                 <div class="meta-item"><div class="meta-label">System Version</div><div class="meta-value">v1.0.0</div></div>
             </div>
         </header>
 
         <div class="report-body">
-            <div id="severity-banner" class="severity-banner critical">
-                <div class="severity-info"><h3>Severity Level: Critical</h3><p>RPL protocol attack detected, immediate response required</p></div>
-                <div class="severity-score"><div class="score">9.2</div><div class="label">Threat Score</div></div>
+            <div id="no-data-banner" class="severity-banner low" style="display: block;">
+                <div class="severity-info"><h3>No Attack Data</h3><p>No attacks have been simulated yet. Go to Hacker Lab to launch an attack first.</p></div>
+                <div class="severity-score"><div class="score">--</div><div class="label">Threat Score</div></div>
+            </div>
+            <div id="severity-banner" class="severity-banner critical" style="display: none;">
+                <div class="severity-info"><h3 id="severity-title">Severity Level: Critical</h3><p id="severity-desc">RPL protocol attack detected, immediate response required</p></div>
+                <div class="severity-score"><div class="score" id="threat-score">--</div><div class="label">Threat Score</div></div>
             </div>
 
             <section class="report-section">
@@ -120,29 +124,26 @@
             <section class="report-section">
                 <h3 class="section-title"><i class="fas fa-bug"></i> Attack Details</h3>
                 <table class="detail-table">
-                    <tr><th>Attack Type</th><td id="attack-type"><span class="tag danger">Sinkhole Attack</span></td></tr>
-                    <tr><th>Attack Source</th><td id="attack-source">malicious-node-001</td></tr>
-                    <tr><th>Target Node</th><td id="attack-target">sensor-001</td></tr>
+                    <tr><th>Attack Type</th><td id="attack-type"><span class="tag info">No attack yet</span></td></tr>
+                    <tr><th>Attack Source</th><td id="attack-source">--</td></tr>
+                    <tr><th>Target Node</th><td id="attack-target">--</td></tr>
                     <tr><th>Detection Time</th><td id="attack-time">--</td></tr>
-                    <tr><th>Confidence</th><td id="attack-confidence">95%</td></tr>
-                    <tr><th>Impact Scope</th><td id="attack-scope">Local Network (3 nodes)</td></tr>
+                    <tr><th>Confidence</th><td id="attack-confidence">--</td></tr>
+                    <tr><th>Impact Scope</th><td id="attack-scope">--</td></tr>
                 </table>
             </section>
 
             <section class="report-section">
                 <h3 class="section-title"><i class="fas fa-history"></i> Event Timeline</h3>
                 <div class="timeline" id="attack-timeline">
-                    <div class="timeline-item warning"><div class="timeline-time">T+0s</div><div class="timeline-content"><h4>Abnormal Rank Value Detected</h4><p>Node malicious-node-001 sent extremely low Rank value (1), original value was 150</p></div></div>
-                    <div class="timeline-item danger"><div class="timeline-time">T+50ms</div><div class="timeline-content"><h4>Sinkhole Attack Confirmed</h4><p>Expert system rule detect-sinkhole-attack-rank-drop triggered, confidence 95%</p></div></div>
-                    <div class="timeline-item success"><div class="timeline-time">T+100ms</div><div class="timeline-content"><h4>Defense Measures Activated</h4><p>Node isolation command sent, routing table update in progress</p></div></div>
+                    <div class="timeline-item info"><div class="timeline-time">--</div><div class="timeline-content"><h4>Waiting for Attack Data</h4><p>Launch an attack in Hacker Lab to see the event timeline</p></div></div>
                 </div>
             </section>
 
             <section class="report-section">
                 <h3 class="section-title"><i class="fas fa-brain"></i> Expert Reasoning Process</h3>
                 <div id="inference-paths">
-                    <div class="inference-box"><h4><i class="fas fa-project-diagram"></i> Inference Path #1</h4><p><strong>Rule:</strong> <span class="rule-name">detect-sinkhole-attack-rank-drop</span></p><p><strong>Trigger Condition:</strong> Node Rank value dropped from >100 to <=5</p><p><strong>Inference Conclusion:</strong> Sinkhole attack detected, malicious node attempting to attract network traffic</p></div>
-                    <div class="inference-box"><h4><i class="fas fa-lightbulb"></i> Reason Explanation</h4><p><strong>Explanation:</strong> A sudden Rank value drop is a typical characteristic of Sinkhole attacks. The attacker makes itself the optimal path by forging an extremely low Rank, thereby intercepting or dropping traffic.</p><p><strong>Evidence:</strong> rank-drop-150-to-1</p></div>
+                    <div class="inference-box"><h4><i class="fas fa-hourglass-start"></i> Waiting for Data</h4><p>Launch an attack in Hacker Lab to see the expert reasoning process</p></div>
                 </div>
             </section>
 
@@ -173,28 +174,184 @@
                 <div class="footer-item"><strong>Inference Engine</strong>CLIPS via clipspy</div>
                 <div class="footer-item"><strong>Rule Base Version</strong>rpl_rules.clp v1.0</div>
             </div>
-            <div class="footer-disclaimer">This report is generated by an automated expert system. It is recommended that a security expert review before taking action.<br>© 2024 IoT-Guardian - All Rights Reserved</div>
+            <div class="footer-disclaimer">This report is generated by an automated expert system. It is recommended that a security expert review before taking action.<br>© 2026 IoT-Guardian - All Rights Reserved</div>
         </footer>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
+        let socket;
+        
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('report-time').textContent = new Date().toLocaleString('en-US');
-            document.getElementById('attack-time').textContent = new Date().toLocaleString('en-US');
             const reportId = 'IOT-' + new Date().getFullYear() + '-' + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
             document.getElementById('report-id').textContent = reportId;
-            loadLatestAttackData();
+            
+            // Initialize Socket.IO for real-time updates
+            socket = io();
+            
+            socket.on('connect', function() {
+                console.log('Report: Connected to server via Socket.IO');
+            });
+            
+            // Listen for report_update event - direct sync from server after attack
+            socket.on('report_update', function(data) {
+                console.log('Report: Received report_update via socket', data);
+                // Update report directly with received data (no localStorage dependency)
+                updateReportWithAttackData(data);
+                // Also save to localStorage as backup
+                localStorage.setItem('latestAttack', JSON.stringify(data));
+            });
+            
+            // Listen for data cleared event
+            socket.on('data_cleared', function(data) {
+                console.log('Report: Received data_cleared via socket', data);
+                // Clear localStorage and reset report display
+                localStorage.removeItem('latestAttack');
+                resetReportDisplay();
+            });
+            
+            // On page load: Priority localStorage > server data
+            const localData = localStorage.getItem('latestAttack');
+            if (localData) {
+                try {
+                    const parsed = JSON.parse(localData);
+                    console.log('Report: Loading from localStorage', parsed);
+                    updateReportWithAttackData(parsed);
+                } catch (e) {
+                    console.log('Report: Invalid localStorage data, trying server');
+                    loadFromServer();
+                }
+            } else {
+                console.log('Report: No localStorage data, trying server');
+                loadFromServer();
+            }
         });
+        
+        function resetReportDisplay() {
+            // Show "no data" banner and hide severity banner
+            document.getElementById('no-data-banner').style.display = 'flex';
+            document.getElementById('severity-banner').style.display = 'none';
+            
+            // Reset all fields to default
+            document.getElementById('attack-type').innerHTML = '<span class="tag">--</span>';
+            document.getElementById('attack-confidence').textContent = '--';
+            document.getElementById('attack-source').textContent = '--';
+            document.getElementById('attack-target').textContent = '--';
+            document.getElementById('rules-fired').textContent = '0';
+            document.getElementById('threat-score').textContent = '--';
+            document.getElementById('attack-time').textContent = new Date().toLocaleString('en-US');
+            
+            // Clear timeline
+            const timeline = document.getElementById('attack-timeline');
+            timeline.innerHTML = '<div class="timeline-item info"><div class="timeline-time">--:--</div><div class="timeline-content"><h4>No Attack Data</h4><p>Waiting for attack injection from Hacker Lab...</p></div></div>';
+            
+            // Clear inference paths
+            const inference = document.getElementById('inference-paths');
+            inference.innerHTML = '<div class="inference-box"><h4><i class="fas fa-info-circle"></i> No Inference Data</h4><p>No attack has been analyzed yet. Launch an attack from Hacker Lab to see inference paths.</p></div>';
+            
+            // Clear recommendations
+            const recommendations = document.getElementById('recommendations');
+            recommendations.innerHTML = '<div class="recommendation-card"><span class="priority-tag">Waiting</span><h4><i class="fas fa-hourglass-half"></i> No Recommendations</h4><p>Defense recommendations will appear after an attack is detected.</p></div>';
+            
+            console.log('Report: Display reset to default state');
+        }
+        
+        async function loadFromServer() {
+            try {
+                const response = await fetch('/api/generate_report');
+                const data = await response.json();
+                console.log('Report: Server data', data);
+                if (data && data.attacks && data.attacks.length > 0) {
+                    // Get the latest attack
+                    const latestAttack = data.attacks[data.attacks.length - 1];
+                    // Determine actual severity from alerts
+                    let actual_severity = latestAttack.severity || 'MEDIUM';
+                    if (data.alerts && data.alerts.length > 0) {
+                        const severityOrder = {'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1};
+                        let maxSev = 'LOW';
+                        data.alerts.forEach(a => {
+                            if (severityOrder[a.level] > severityOrder[maxSev]) maxSev = a.level;
+                        });
+                        actual_severity = maxSev;
+                    } else if (!data.alerts || data.alerts.length === 0) {
+                        actual_severity = 'LOW';
+                    }
+                    
+                    const reportData = {
+                        attack: latestAttack,
+                        source: latestAttack.source,
+                        target: latestAttack.target,
+                        rules_fired: data.alerts ? data.alerts.length : 0,
+                        alerts: data.alerts || [],
+                        defenses: data.defenses || [],
+                        inference_paths: data.inference_paths || [],
+                        reasons: data.reasons || [],
+                        actual_severity: actual_severity,
+                        timestamp: latestAttack.timestamp
+                    };
+                    updateReportWithAttackData(reportData);
+                }
+            } catch (e) {
+                console.log('Report: Could not load from server:', e);
+            }
+        }
         
         function loadLatestAttackData() { const data = localStorage.getItem('latestAttack'); if (data) { updateReportWithAttackData(JSON.parse(data)); } }
         
         function updateReportWithAttackData(data) {
-            if (data.attack) { document.getElementById('attack-type').innerHTML = `<span class="tag danger">${data.attack.type}</span>`; document.getElementById('attack-confidence').textContent = data.attack.confidence + '%'; const banner = document.getElementById('severity-banner'); const severity = data.attack.severity.toLowerCase(); banner.className = `severity-banner ${severity}`; banner.querySelector('h3').textContent = `Severity Level: ${data.attack.severity === 'CRITICAL' ? 'Critical' : data.attack.severity === 'HIGH' ? 'High' : 'Medium'}`; }
+            // Hide "no data" banner and show severity banner
+            document.getElementById('no-data-banner').style.display = 'none';
+            document.getElementById('severity-banner').style.display = 'flex';
+            
+            if (data.attack) { 
+                document.getElementById('attack-type').innerHTML = `<span class="tag danger">${data.attack.type}</span>`; 
+                document.getElementById('attack-confidence').textContent = data.attack.confidence + '%'; 
+                const banner = document.getElementById('severity-banner'); 
+                const severity = (data.actual_severity || data.attack.severity || 'MEDIUM').toLowerCase(); 
+                banner.className = `severity-banner ${severity}`; 
+                const severityText = severity === 'critical' ? 'Critical' : severity === 'high' ? 'High' : severity === 'medium' ? 'Medium' : 'Low';
+                document.getElementById('severity-title').textContent = `Severity Level: ${severityText}`;
+                // Calculate threat score based on severity
+                const scoreMap = { 'critical': 9.5, 'high': 7.5, 'medium': 5.0, 'low': 2.0 };
+                document.getElementById('threat-score').textContent = scoreMap[severity] || '--';
+            }
             if (data.source) { document.getElementById('attack-source').textContent = data.source; }
             if (data.target) { document.getElementById('attack-target').textContent = data.target; }
-            if (data.rules_fired) { document.getElementById('rules-fired').textContent = data.rules_fired; }
-            if (data.inference_paths && data.inference_paths.length > 0) { const container = document.getElementById('inference-paths'); container.innerHTML = ''; data.inference_paths.forEach((path, idx) => { container.innerHTML += `<div class="inference-box"><h4><i class="fas fa-project-diagram"></i> Inference Path #${idx + 1}</h4><p><strong>Rule:</strong> <span class="rule-name">${path.rule_name}</span></p><p><strong>Trigger Condition:</strong> ${path.trigger_condition}</p><p><strong>Inference Conclusion:</strong> ${path.conclusion}</p></div>`; }); if (data.reasons && data.reasons.length > 0) { data.reasons.forEach(reason => { container.innerHTML += `<div class="inference-box"><h4><i class="fas fa-lightbulb"></i> Reason Explanation</h4><p><strong>Explanation:</strong> ${reason.explanation}</p><p><strong>Evidence:</strong> ${reason.evidence}</p></div>`; }); } }
-            if (data.defenses && data.defenses.length > 0) { const grid = document.getElementById('recommendations'); grid.innerHTML = ''; data.defenses.forEach((def, idx) => { const priority = idx < 2 ? 'immediate' : (idx < 4 ? 'short-term' : 'long-term'); const priorityText = priority === 'immediate' ? 'Immediate Action' : (priority === 'short-term' ? 'Short-term Measure' : 'Long-term Measure'); grid.innerHTML += `<div class="recommendation-card ${priority}"><span class="priority-tag">${priorityText}</span><h4><i class="fas fa-shield-alt"></i> ${def.action_type}</h4><p>${def.description}</p></div>`; }); }
+            if (data.rules_fired !== undefined) { document.getElementById('rules-fired').textContent = data.rules_fired; }
+            document.getElementById('attack-time').textContent = data.timestamp ? new Date(data.timestamp).toLocaleString('en-US') : new Date().toLocaleString('en-US');
+            
+            // Update timeline based on alerts
+            if (data.alerts && data.alerts.length > 0) {
+                const timeline = document.getElementById('attack-timeline');
+                timeline.innerHTML = '';
+                data.alerts.forEach((alert, idx) => {
+                    const timeClass = alert.level === 'CRITICAL' ? 'danger' : alert.level === 'HIGH' ? 'warning' : 'info';
+                    timeline.innerHTML += `<div class="timeline-item ${timeClass}"><div class="timeline-time">T+${idx * 50}ms</div><div class="timeline-content"><h4>${alert.attack_type || 'Alert'}</h4><p>${alert.message}</p></div></div>`;
+                });
+            }
+            
+            if (data.inference_paths && data.inference_paths.length > 0) { 
+                const container = document.getElementById('inference-paths'); 
+                container.innerHTML = ''; 
+                data.inference_paths.forEach((path, idx) => { 
+                    container.innerHTML += `<div class="inference-box"><h4><i class="fas fa-project-diagram"></i> Inference Path #${idx + 1}</h4><p><strong>Rule:</strong> <span class="rule-name">${path.rule_name}</span></p><p><strong>Trigger Condition:</strong> ${path.trigger_condition}</p><p><strong>Inference Conclusion:</strong> ${path.conclusion}</p></div>`; 
+                }); 
+                if (data.reasons && data.reasons.length > 0) { 
+                    data.reasons.forEach(reason => { 
+                        container.innerHTML += `<div class="inference-box"><h4><i class="fas fa-lightbulb"></i> Reason Explanation</h4><p><strong>Explanation:</strong> ${reason.explanation}</p><p><strong>Evidence:</strong> ${reason.evidence}</p></div>`; 
+                    }); 
+                } 
+            }
+            if (data.defenses && data.defenses.length > 0) { 
+                const grid = document.getElementById('recommendations'); 
+                grid.innerHTML = ''; 
+                data.defenses.forEach((def, idx) => { 
+                    const priority = def.priority === 'CRITICAL' ? 'immediate' : (def.priority === 'HIGH' ? 'immediate' : (idx < 4 ? 'short-term' : 'long-term')); 
+                    const priorityText = priority === 'immediate' ? 'Immediate Action' : (priority === 'short-term' ? 'Short-term Measure' : 'Long-term Measure'); 
+                    grid.innerHTML += `<div class="recommendation-card ${priority}"><span class="priority-tag">${priorityText}</span><h4><i class="fas fa-shield-alt"></i> ${def.action_type}</h4><p>${def.description}</p></div>`; 
+                }); 
+            }
         }
         
         function exportReport() { const reportData = { reportId: document.getElementById('report-id').textContent, generatedAt: new Date().toISOString(), attackType: document.getElementById('attack-type').textContent, attackSource: document.getElementById('attack-source').textContent, attackTarget: document.getElementById('attack-target').textContent, confidence: document.getElementById('attack-confidence').textContent, rulesFired: document.getElementById('rules-fired').textContent, systemVersion: 'v1.0.0' }; const blob = new Blob([JSON.stringify(reportData, null, 2)], {type: 'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `iot-guardian-report-${Date.now()}.json`; a.click(); }

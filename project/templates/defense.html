@@ -202,7 +202,9 @@
             factCount = 0; 
             alertCount = 0;
             defenseCount = 0;
-            updateCounts(); 
+            updateCounts();
+            // Clear localStorage for Report page sync
+            localStorage.removeItem('latestAttack');
             // Clear server-side data
             fetch('/api/clear_defense_data', { method: 'POST' })
                 .then(r => r.json())

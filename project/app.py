@@ -435,11 +435,36 @@ def collect_inference_results():
         
         # Emit ONLY new results via WebSocket
         for alert in new_alerts:
-            log_inference(f"Emitting alert with node_id: {alert.get('node_id')}")
-            socketio.emit('new_alert', alert, namespace='/')
+            # Include attack_type in alert for topology to determine correct node color
+            alert_with_type = alert.copy()
+            # Map attack type to action type for color determination (case-insensitive)
+            attack_type = alert.get('attack_type', '').upper()
+            if 'MALICIOUS' in attack_type:
+                alert_with_type['action_type'] = 'BLOCK_PERMANENT'
+            elif 'QUARANTINE' in attack_type:
+                alert_with_type['action_type'] = 'QUARANTINE'
+            elif 'VICTIM' in attack_type:
+                alert_with_type['action_type'] = 'VICTIM'
+            log_inference(f"Emitting alert with node_id: {alert.get('node_id')}, level: {alert.get('level')}, action_type: {alert_with_type.get('action_type')}, attack_type: {alert.get('attack_type')}")
+            socketio.emit('new_alert', alert_with_type, namespace='/')
         for defense in new_defenses:
-            log_inference(f"Emitting defense: {defense.get('action_type')}")
-            socketio.emit('new_defense', defense, namespace='/')
+            # Add attack_type and level for topology color determination
+            defense_with_type = defense.copy()
+            action_type = defense.get('action_type', '').upper()
+            # Determine attack_type from action_type for color matching
+            if 'BLOCK_PERMANENT' in action_type or 'BLOCK-PERMANENT' in action_type:
+                defense_with_type['attack_type'] = 'Malicious'
+                defense_with_type['level'] = 'CRITICAL'
+            elif 'QUARANTINE' in action_type or 'ISOLATE' in action_type:
+                defense_with_type['attack_type'] = 'Quarantine'
+                defense_with_type['level'] = 'HIGH'
+            elif 'VICTIM' in action_type:
+                defense_with_type['attack_type'] = 'Victim'
+                defense_with_type['level'] = 'HIGH'
+            else:
+                defense_with_type['level'] = defense.get('priority', 'MEDIUM')
+            log_inference(f"Emitting defense: {defense.get('action_type')} for target: {defense.get('target')}, attack_type: {defense_with_type.get('attack_type')}")
+            socketio.emit('new_defense', defense_with_type, namespace='/')
         for path in new_paths:
             log_inference(f"Emitting inference_path: {path.get('rule_name')}")
             socketio.emit('inference_path', path, namespace='/')
@@ -855,17 +880,47 @@ def inject_attack():
     success, result = inject_attack_fact(attack_type, source, target, **kwargs)
     
     if success:
+        # Record the alert count BEFORE running inference
+        alerts_before = len(fact_base.get('alerts', []))
+        
         # Run inference engine
         inf_success, rules_fired = run_inference()
+        
+        # Get only the NEW alerts from this attack (not historical ones)
+        all_alerts = fact_base.get('alerts', [])
+        new_alerts = all_alerts[alerts_before:] if alerts_before < len(all_alerts) else []
+        
+        # Determine actual severity from NEW alerts only (not historical)
+        # If no rules fired or normal behavior detected, severity should be LOW
+        actual_severity = 'LOW'  # Default to LOW
+        if rules_fired > 0 and new_alerts:
+            # Get the highest severity from NEW alerts only
+            severity_order = {'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1}
+            max_severity = 'LOW'
+            for alert in new_alerts:
+                alert_sev = alert.get('level', 'MEDIUM')
+                if severity_order.get(alert_sev, 0) > severity_order.get(max_severity, 0):
+                    max_severity = alert_sev
+            actual_severity = max_severity
+        elif rules_fired == 0:
+            actual_severity = 'LOW'
+        
+        # Update the result with actual severity
+        result['actual_severity'] = actual_severity
+        
+        # Get only new defenses, paths, reasons
+        defenses_before = alerts_before  # Approximate
+        new_defenses = fact_base.get('defenses', [])[defenses_before:] if defenses_before < len(fact_base.get('defenses', [])) else fact_base.get('defenses', [])[-rules_fired:] if rules_fired > 0 else []
         
         response = {
             'success': True,
             'attack': result,
+            'actual_severity': actual_severity,
             'rules_fired': rules_fired,
-            'alerts': fact_base['alerts'],
-            'defenses': fact_base['defenses'],
-            'inference_paths': fact_base.get('inference_paths', []),
-            'reasons': fact_base.get('reasons', [])
+            'alerts': new_alerts if new_alerts else fact_base.get('alerts', [])[-rules_fired:] if rules_fired > 0 else [],
+            'defenses': new_defenses if new_defenses else fact_base.get('defenses', [])[-rules_fired:] if rules_fired > 0 else [],
+            'inference_paths': fact_base.get('inference_paths', [])[-rules_fired:] if rules_fired > 0 else [],
+            'reasons': fact_base.get('reasons', [])[-rules_fired:] if rules_fired > 0 else []
         }
         
         # Add warnings if attack parameters won't trigger rules
@@ -874,6 +929,22 @@ def inject_attack():
             response['attack_effective'] = False
         else:
             response['attack_effective'] = rules_fired > 0
+        
+        # Emit report_update event with complete data for Report page sync
+        report_data = {
+            'attack': result,
+            'source': source,
+            'target': target,
+            'rules_fired': rules_fired,
+            'alerts': response['alerts'],
+            'defenses': response['defenses'],
+            'inference_paths': response['inference_paths'],
+            'reasons': response['reasons'],
+            'actual_severity': actual_severity,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        socketio.emit('report_update', report_data, namespace='/')
+        log_inference(f"Emitted report_update event with attack: {result.get('type')}")
         
         return jsonify(response)
     else:
@@ -945,6 +1016,8 @@ def api_generate_report():
         'attacks': attack_history,
         'alerts': fact_base['alerts'],
         'defenses': fact_base['defenses'],
+        'inference_paths': fact_base.get('inference_paths', []),
+        'reasons': fact_base.get('reasons', []),
         'inference_log': fact_base['inference_log'][-20:]  # Last 20 entries
     }
     

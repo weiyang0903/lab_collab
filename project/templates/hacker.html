@@ -45,6 +45,7 @@
         .severity-badge.critical { background: #e74c3c; }
         .severity-badge.high { background: #e67e22; }
         .severity-badge.medium { background: #f39c12; color: #000; }
+        .severity-badge.low { background: #2ecc71; }
         .console-output { background: #000; border-radius: 8px; padding: 1rem; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.85rem; max-height: 250px; overflow-y: auto; }
         .console-line { padding: 0.3rem 0; display: flex; gap: 0.5rem; }
         .console-prompt { color: #e74c3c; font-weight: bold; }
@@ -458,6 +459,22 @@
                         });
                     }
                     
+                    // Save to localStorage for Report page synchronization
+                    const reportData = {
+                        attack: data.attack,
+                        source: sourceNode,
+                        target: targetNode,
+                        rules_fired: data.rules_fired,
+                        alerts: data.alerts || [],
+                        defenses: data.defenses || [],
+                        inference_paths: data.inference_paths || [],
+                        reasons: data.reasons || [],
+                        actual_severity: data.actual_severity,
+                        timestamp: new Date().toISOString()
+                    };
+                    localStorage.setItem('latestAttack', JSON.stringify(reportData));
+                    addConsoleLog('Attack data synced to Report page', 'info');
+                    
                     displayResults(data); 
                 }
                 else { addConsoleLog(`Attack failed: ${data.error}`, 'error'); }
@@ -469,6 +486,9 @@
             const panel = document.getElementById('results-panel');
             let html = '';
             
+            // Use actual_severity if available (based on rules fired), otherwise use attack config severity
+            const displaySeverity = data.actual_severity || data.attack.severity;
+            
             // Show warnings at the top if attack is ineffective
             if (data.warnings && data.warnings.length > 0) {
                 html += `<div class="result-block" style="border-color: #f39c12; background: rgba(243,156,18,0.15);"><h4 style="color: #f39c12;"><i class="fas fa-exclamation-triangle"></i> Attack Ineffective</h4>`;
@@ -478,7 +498,7 @@
                 html += `<div class="result-item" style="margin-top: 0.5rem; color: #bdc3c7;"><i class="fas fa-info-circle"></i> The attack was injected but did not trigger any detection rules. Adjust parameters to simulate a detectable attack.</div></div>`;
             }
             
-            html += `<div class="result-block attack"><h4><i class="fas fa-bug"></i> Attack Injection ${data.attack_effective !== false ? 'Successful' : 'Completed'}</h4><div class="result-item"><strong>Type:</strong> ${data.attack.type}</div><div class="result-item"><strong>Severity:</strong> <span class="severity-badge ${data.attack.severity.toLowerCase()}">${data.attack.severity}</span></div><div class="result-item"><strong>Confidence:</strong> ${data.attack.confidence}%</div><div class="result-item"><strong>Description:</strong> ${data.attack.description}</div><div class="result-item"><strong>Rules Fired:</strong> <span style="color: ${data.rules_fired > 0 ? '#2ecc71' : '#e74c3c'}">${data.rules_fired}</span></div></div>`;
+            html += `<div class="result-block attack"><h4><i class="fas fa-bug"></i> Attack Injection ${data.attack_effective !== false ? 'Successful' : 'Completed'}</h4><div class="result-item"><strong>Type:</strong> ${data.attack.type}</div><div class="result-item"><strong>Detected Severity:</strong> <span class="severity-badge ${displaySeverity.toLowerCase()}">${displaySeverity}</span></div><div class="result-item"><strong>Confidence:</strong> ${data.attack.confidence}%</div><div class="result-item"><strong>Description:</strong> ${data.attack.description}</div><div class="result-item"><strong>Rules Fired:</strong> <span style="color: ${data.rules_fired > 0 ? '#2ecc71' : '#e74c3c'}">${data.rules_fired}</span></div></div>`;
             if (data.alerts && data.alerts.length > 0) { html += `<div class="result-block alert"><h4><i class="fas fa-bell"></i> Generated Alerts (${data.alerts.length})</h4>`; data.alerts.forEach(alert => { html += `<div class="result-item"><span class="severity-badge ${(alert.level || 'warning').toLowerCase()}">${alert.level || alert.attack_type}</span> ${alert.message}</div>`; }); html += '</div>'; }
             if (data.defenses && data.defenses.length > 0) { html += `<div class="result-block defense"><h4><i class="fas fa-shield-alt"></i> Defense Recommendations (${data.defenses.length})</h4>`; data.defenses.forEach(def => { html += `<div class="result-item"><strong>${def.action_type}</strong>: ${def.description} <span class="severity-badge ${(def.priority || 'medium').toLowerCase()}">${def.priority}</span></div>`; }); html += '</div>'; }
             if (data.inference_paths && data.inference_paths.length > 0) { html += `<div class="result-block inference"><h4><i class="fas fa-project-diagram"></i> Inference Paths (${data.inference_paths.length})</h4>`; data.inference_paths.forEach(path => { html += `<div class="result-item"><strong>Rule:</strong> ${path.rule_name}<br><strong>Trigger Condition:</strong> ${path.trigger_condition}<br><strong>Conclusion:</strong> ${path.conclusion}</div>`; }); html += '</div>'; }
@@ -486,7 +506,7 @@
             
             // If no alerts/defenses generated, show a note
             if ((!data.alerts || data.alerts.length === 0) && (!data.warnings || data.warnings.length === 0)) {
-                html += `<div class="result-block" style="border-color: #3498db; background: rgba(52,152,219,0.1);"><h4 style="color: #3498db;"><i class="fas fa-info-circle"></i> No Alerts Generated</h4><div class="result-item">The attack was processed but no detection rules were triggered. This could mean the attack parameters are within normal thresholds.</div></div>`;
+                html += `<div class="result-block" style="border-color: #2ecc71; background: rgba(46,204,113,0.1);"><h4 style="color: #2ecc71;"><i class="fas fa-check-circle"></i> Normal Behavior - No Attack Detected</h4><div class="result-item">The parameters indicate normal node behavior. No detection rules were triggered.</div></div>`;
             }
             
             panel.innerHTML = html;
