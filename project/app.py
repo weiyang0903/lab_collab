@@ -124,35 +124,54 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
     
     # Map attack types to severity and configuration (Based on Literature)
     # Attack configuration mapping
-    # Literature references (internal only):
-    # - DIO-Suppression: FLSec-RPL [2]
-    # - Jamming: [4][5]
-    # - Sinkhole/Bidirectional: PRBA [7][8][9]
-    # - SelectiveForwarding/DoS/RankAttack: RF [10]
-    # - XAI-Anomaly: [11][13]
-    # - Sinkhole-UVM: UVM [14][16][17]
-    # - HelloFlood/VersionNumber/RankDecrease: Hybrid IDS [18]-[21]
-    # - SRPL-*: SRPL-RP [22][24]
-    # - Dist-IDS: [25][26]
-    # - Sybil: FLBT-RPL [28]
+    # 
+    # Confidence values are derived from literature-reported accuracy/detection rates:
+    # [2] SRPL-RP: Accuracy 98.30% (Version), 98.48% (Rank) - Cooja, 20 nodes
+    # [3] PRBA: Accuracy 90-100%, FPR 0-0.2% - RPL-NIDDS17 dataset
+    # [6] XAI (Isolation Forest): Accuracy 98-100%, F1 96-100% - IoMT Sinkhole/Blackhole
+    # [9] FLSec-RPL: Accuracy 97-100% (static), 75-100% (mobile), F1 91-100%
+    # [10] Distributed IDS: ~100% detection, FPR 1-2% - Contiki-NG, Rank attacks
+    # [11] RF Multi-Attack: Rank 88.4%, SF 87.1%, DoS 85.2% - 50 nodes, Cooja
+    # [12] FLBT-RPL: Detection Rate 98% - Smart Healthcare CPS, 90 nodes
+    # [13] Hybrid IDS: High accuracy (not quantified), CPU <2% - 6 attack types
+    # [14] UVM: DR 100% (voting), 90% (no voting), Accuracy 94.5% - RPL-NIDDS17
+    # [15] Jamming FLIDS: Accuracy 51.49-99.70% (location dependent) - Multiple jammers
+    #
     attack_config = {
-        'DIO-Suppression': {'severity': 'CRITICAL', 'confidence': 90, 'description': 'DIO Neighbor Suppression Attack - Excessive DIO messages with short intervals'},
-        'Jamming': {'severity': 'CRITICAL', 'confidence': 85, 'description': 'Wireless Signal Jamming Attack - High ETX and retransmissions'},
-        'Sinkhole': {'severity': 'CRITICAL', 'confidence': 85, 'description': 'Sinkhole Attack - Malicious node forges low Rank to attract traffic'},
-        'Sinkhole-Bidirectional': {'severity': 'HIGH', 'confidence': 80, 'description': 'Bidirectional Behavior Anomaly - Suspicious traffic patterns detected'},
-        'SelectiveForwarding': {'severity': 'HIGH', 'confidence': 75, 'description': 'Selective Forwarding Attack - Abnormal packet drop rate detected'},
-        'DoS': {'severity': 'CRITICAL', 'confidence': 90, 'description': 'DoS Attack - Abnormal duplicate packet rate and forwarding rate'},
-        'RankAttack': {'severity': 'HIGH', 'confidence': 80, 'description': 'Rank Attack - Significant Rank value manipulation detected'},
-        'XAI-Anomaly': {'severity': 'HIGH', 'confidence': 78, 'description': 'Anomaly Detected - Unusual behavior pattern identified'},
-        'Sinkhole-UVM': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'Sinkhole Attack - Multiple detection rules confirmed malicious behavior'},
-        'HelloFlood': {'severity': 'HIGH', 'confidence': 90, 'description': 'Hello Flood Attack - Control Message Flooding (DIO/DIS/DAO)'},
-        'VersionNumber': {'severity': 'HIGH', 'confidence': 80, 'description': 'Version Number Attack - Forged version triggers DODAG reconstruction'},
-        'RankDecrease': {'severity': 'HIGH', 'confidence': 82, 'description': 'Rank Decrease Attack - Suspicious Rank reduction detected'},
-        'SRPL-Malicious': {'severity': 'CRITICAL', 'confidence': 92, 'description': 'Malicious Node - Parent-Child Rank Violation detected'},
-        'SRPL-RankDecrease': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'Abnormal Rank Decrease - Beyond acceptable threshold'},
-        'SRPL-RankIncrease': {'severity': 'HIGH', 'confidence': 75, 'description': 'Abnormal Rank Increase - Potential manipulation detected'},
-        'Dist-IDS-Violation': {'severity': 'HIGH', 'confidence': 80, 'description': 'Security Violation - Threshold exceeded in monitoring window'},
-        'Sybil': {'severity': 'CRITICAL', 'confidence': 88, 'description': 'Sybil Attack - Multiple fake identities detected from single node'}
+        # [9] FLSec-RPL: 97-100% static → use 97 (conservative)
+        'DIO-Suppression': {'severity': 'CRITICAL', 'confidence': 97, 'description': 'DIO Neighbor Suppression Attack - Excessive DIO messages with short intervals'},
+        # [15] Jamming: 51.49-99.70% → use 76 (median, highly variable)
+        'Jamming': {'severity': 'CRITICAL', 'confidence': 76, 'description': 'Wireless Signal Jamming Attack - High ETX and retransmissions'},
+        # [3] PRBA: 90-100% → use 95 (midpoint)
+        'Sinkhole': {'severity': 'CRITICAL', 'confidence': 95, 'description': 'Sinkhole Attack - Malicious node forges low Rank to attract traffic'},
+        # [3] PRBA: 90-100% → use 92 (slightly lower for bidirectional)
+        'Sinkhole-Bidirectional': {'severity': 'HIGH', 'confidence': 92, 'description': 'Bidirectional Behavior Anomaly - Suspicious traffic patterns detected'},
+        # [11] RF: SF 87.1% → use 87
+        'SelectiveForwarding': {'severity': 'HIGH', 'confidence': 87, 'description': 'Selective Forwarding Attack - Abnormal packet drop rate detected'},
+        # [11] RF: DoS 85.2% → use 85
+        'DoS': {'severity': 'CRITICAL', 'confidence': 85, 'description': 'DoS Attack - Abnormal duplicate packet rate and forwarding rate'},
+        # [11] RF: Rank 88.4% → use 88
+        'RankAttack': {'severity': 'HIGH', 'confidence': 88, 'description': 'Rank Attack - Significant Rank value manipulation detected'},
+        # [6] XAI: 98-100% → use 98
+        'XAI-Anomaly': {'severity': 'HIGH', 'confidence': 98, 'description': 'Anomaly Detected - Unusual behavior pattern identified'},
+        # [14] UVM: 100% with voting → use 100
+        'Sinkhole-UVM': {'severity': 'CRITICAL', 'confidence': 100, 'description': 'Sinkhole Attack - Multiple detection rules confirmed malicious behavior'},
+        # [13] Hybrid IDS: High accuracy → use 95 (estimated)
+        'HelloFlood': {'severity': 'HIGH', 'confidence': 95, 'description': 'Hello Flood Attack - Control Message Flooding (DIO/DIS/DAO)'},
+        # [13] Hybrid IDS + [2] SRPL-RP: 98.30% → use 98
+        'VersionNumber': {'severity': 'HIGH', 'confidence': 98, 'description': 'Version Number Attack - Forged version triggers DODAG reconstruction'},
+        # [10] Distributed IDS: ~100% → use 98
+        'RankDecrease': {'severity': 'HIGH', 'confidence': 98, 'description': 'Rank Decrease Attack - Suspicious Rank reduction detected'},
+        # [2] SRPL-RP: 98.48% → use 98
+        'SRPL-Malicious': {'severity': 'CRITICAL', 'confidence': 98, 'description': 'Malicious Node - Parent-Child Rank Violation detected'},
+        # [2] SRPL-RP: 98.48% → use 98
+        'SRPL-RankDecrease': {'severity': 'CRITICAL', 'confidence': 98, 'description': 'Abnormal Rank Decrease - Beyond acceptable threshold'},
+        # [2] SRPL-RP: 98.30% → use 98
+        'SRPL-RankIncrease': {'severity': 'HIGH', 'confidence': 98, 'description': 'Abnormal Rank Increase - Potential manipulation detected'},
+        # [10] Distributed IDS: ~100%, FPR 1-2% → use 98
+        'Dist-IDS-Violation': {'severity': 'HIGH', 'confidence': 98, 'description': 'Security Violation - Threshold exceeded in monitoring window'},
+        # [12] FLBT-RPL: DR 98% → use 98
+        'Sybil': {'severity': 'CRITICAL', 'confidence': 98, 'description': 'Sybil Attack - Multiple fake identities detected from single node'}
     }
     
     config = attack_config.get(attack_type, {
@@ -165,7 +184,7 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
     
     # Build attack-specific CLIPS facts based on Literature Rules
     
-    # ========== FLSec-RPL (文献[2]) ==========
+    # ========== FLSec-RPL (reference[9]) ==========
     if attack_type == 'DIO-Suppression':
         dio_level = kwargs.get('dio_level', 'High')
         dti_level = kwargs.get('dti_level', 'Low')
@@ -174,14 +193,14 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
         facts_to_assert.append(f'(dti-record (node-id "{source}") (interval 0.1) (level {dti_level}))')
         facts_to_assert.append(f'(stia-record (node-id "{source}") (value 0.2) (level {stia_level}))')
     
-    # ========== Jamming (文献[4][5]) ==========
+    # ========== Jamming (reference[15]) ==========
     elif attack_type == 'Jamming':
         etx_level = kwargs.get('etx_level', 'High')
         retrans_level = kwargs.get('retrans_level', 'High')
         facts_to_assert.append(f'(etx-record (node-id "{source}") (value 5.0) (level {etx_level}))')
         facts_to_assert.append(f'(retransmission-record (node-id "{source}") (count 50) (level {retrans_level}))')
     
-    # ========== PRBA Sinkhole (文献[7][8][9]) ==========
+    # ========== PRBA Sinkhole (reference[3]) ==========
     elif attack_type == 'Sinkhole':
         prev_rank = kwargs.get('prev_rank', 150)
         curr_rank = kwargs.get('curr_rank', 1)
@@ -192,7 +211,7 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
         count = kwargs.get('count', 6)
         facts_to_assert.append(f'(bidirectional-behavior (child-id "{source}") (parent-id "{parent_id}") (count {count}) (timestamp {current_ts}))')
     
-    # ========== RF Multi-Attack (文献[10]) ==========
+    # ========== RF Multi-Attack (reference[11]) ==========
     elif attack_type == 'SelectiveForwarding':
         drop_rate = kwargs.get('drop_rate', 0.35)
         threshold = kwargs.get('threshold', 0.2)
@@ -209,7 +228,7 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
         curr_rank = kwargs.get('curr_rank', 50)
         facts_to_assert.append(f'(node-rank-history (node-id "{source}") (previous-rank {prev_rank}) (current-rank {curr_rank}) (timestamp {current_ts}))')
     
-    # ========== XAI Anomaly (文献[11][13]) ==========
+    # ========== XAI Anomaly (reference[6]) ==========
     elif attack_type == 'XAI-Anomaly':
         npc = kwargs.get('npc', 1.0)
         nc = kwargs.get('nc', 2.0)
@@ -218,13 +237,13 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
         facts_to_assert.append(f'(nc-record (node-id "{source}") (count {nc}))')
         facts_to_assert.append(f'(udp-received (node-id "{source}") (count {udp_recv}))')
     
-    # ========== UVM Voting (文献[14][16][17]) ==========
+    # ========== UVM Voting (reference[14]) ==========
     elif attack_type == 'Sinkhole-UVM':
         abnormal = kwargs.get('abnormal_count', 4)
         total = kwargs.get('total_rules', 5)
         facts_to_assert.append(f'(voting-result (node-id "{source}") (abnormal-count {abnormal}) (total-rules {total}))')
     
-    # ========== Hybrid IDS (文献[18]-[21]) ==========
+    # ========== Hybrid IDS (reference[13]) ==========
     elif attack_type == 'HelloFlood':
         dio_count = kwargs.get('dio_count', 50)
         dis_count = kwargs.get('dis_count', 30)
@@ -243,7 +262,7 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
         k_factor = kwargs.get('k_factor', 0.3)
         facts_to_assert.append(f'(neighbor-rank-stats (node-id "{source}") (received-rank {recv_rank}) (avg-neighbor-rank {avg_rank}) (max-neighbor-rank {max_rank}) (k-factor {k_factor}))')
     
-    # ========== SRPL-RP (文献[22][24]) ==========
+    # ========== SRPL-RP (reference[2]) ==========
     elif attack_type == 'SRPL-Malicious':
         ncr = kwargs.get('ncr', 100)
         npr = kwargs.get('npr', 150)
@@ -262,13 +281,13 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
         mcr = kwargs.get('mcr', 180)
         facts_to_assert.append(f'(srpl-rank-check (node-id "{source}") (ncr {ncr}) (npr 100) (nor {nor}) (msr 160) (mcr {mcr}) (pst 10))')
     
-    # ========== Distributed IDS (文献[25][26]) ==========
+    # ========== Distributed IDS (reference[10]) ==========
     elif attack_type == 'Dist-IDS-Violation':
         violation_count = kwargs.get('violation_count', 6)
         threshold = kwargs.get('threshold', 5)
         facts_to_assert.append(f'(violation-counter (node-id "{source}") (count {violation_count}) (threshold {threshold}) (time-window 30))')
     
-    # ========== FLBT-RPL Sybil (文献[28]) ==========
+    # ========== FLBT-RPL Sybil (reference[12]) ==========
     elif attack_type == 'Sybil':
         ics = kwargs.get('ics', 0.9)
         scs = kwargs.get('scs', 0.8)

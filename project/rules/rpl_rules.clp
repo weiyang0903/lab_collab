@@ -3,16 +3,16 @@
 ;;; Based on Literature Review Rules
 ;;; 
 ;;; References:
-;;; [2] FLSec-RPL: Fuzzy Logic for DIO Neighbor Suppression
-;;; [4][5] Jamming Attack Detection
-;;; [7][8][9] PRBA - Passive Rule-Based Approach
-;;; [10] Random Forest Multi-Attack Detection
-;;; [11][13] XAI Anomaly Detection (Isolation Forest)
-;;; [14][16][17] UVM - Unweighted Voting Method
-;;; [18]-[21] Hybrid IDS
-;;; [22][24] SRPL-RP Rank & Version Attack Defense
-;;; [26] Distributed IDS
-;;; [28] FLBT-RPL Sybil Detection
+;;; [9] FLSec-RPL: Fuzzy Logic for DIO Neighbor Suppression
+;;; [15] Jamming Attack Detection
+;;; [3] PRBA - Passive Rule-Based Approach
+;;; [11] Random Forest Multi-Attack Detection
+;;; [6] XAI Anomaly Detection (Isolation Forest)
+;;; [14] UVM - Unweighted Voting Method
+;;; [13] Hybrid IDS
+;;; [2] SRPL-RP Rank & Version Attack Defense
+;;; [10] Distributed IDS
+;;; [12] FLBT-RPL Sybil Detection
 ;;;======================================================
 
 ;;; ===========================================
@@ -277,7 +277,7 @@
 
 
 ;;;============================================
-;;; SECTION 1: FLSec-RPL RULES (Reference [2])
+;;; SECTION 1: FLSec-RPL RULES (Reference [9])
 ;;; DIO Neighbor Suppression Attack Detection - Fuzzy Logic Rules
 ;;;============================================
 
@@ -458,7 +458,7 @@
 
 
 ;;;============================================
-;;; SECTION 2: JAMMING ATTACK DETECTION (Reference [4][5])
+;;; SECTION 2: JAMMING ATTACK DETECTION (Reference [15])
 ;;; Jamming Attack Detection Rules
 ;;;============================================
 
@@ -588,7 +588,7 @@
 
 
 ;;;============================================
-;;; SECTION 3: PRBA SINKHOLE DETECTION (Reference [7][8][9])
+;;; SECTION 3: PRBA SINKHOLE DETECTION (Reference [3])
 ;;; Passive Rule-Based Approach
 ;;;============================================
 
@@ -742,7 +742,7 @@
 
 
 ;;;============================================
-;;; SECTION 4: RF MULTI-ATTACK DETECTION (Reference [10])
+;;; SECTION 4: RF MULTI-ATTACK DETECTION (Reference [11])
 ;;; Random Forest-based Multi-Attack Detection
 ;;;============================================
 
@@ -920,7 +920,7 @@
 
 
 ;;;============================================
-;;; SECTION 5: XAI ANOMALY DETECTION (Reference [11][13])
+;;; SECTION 5: XAI ANOMALY DETECTION (Reference [6])
 ;;; Isolation Forest-based Anomaly Detection
 ;;;============================================
 
@@ -979,7 +979,7 @@
 
 
 ;;;============================================
-;;; SECTION 6: UVM VOTING METHOD (Reference [14][16][17])
+;;; SECTION 6: UVM VOTING METHOD (Reference [14])
 ;;; Unweighted Voting Method
 ;;;============================================
 
@@ -1106,7 +1106,7 @@
 
 
 ;;;============================================
-;;; SECTION 7: HYBRID IDS (Reference [18]-[21])
+;;; SECTION 7: HYBRID IDS (Reference [13])
 ;;; Hybrid Intrusion Detection System
 ;;;============================================
 
@@ -1294,7 +1294,7 @@
 
 
 ;;;============================================
-;;; SECTION 8: SRPL-RP DEFENSE (Reference [22][24])
+;;; SECTION 8: SRPL-RP DEFENSE (Reference [2])
 ;;; Rank and Version Attack Defense
 ;;;============================================
 
@@ -1476,7 +1476,7 @@
 
 
 ;;;============================================
-;;; SECTION 9: DISTRIBUTED IDS (Reference [25][26])
+;;; SECTION 9: DISTRIBUTED IDS (Reference [10])
 ;;; Distributed Intrusion Detection System
 ;;;============================================
 
@@ -1564,7 +1564,7 @@
 
 
 ;;;============================================
-;;; SECTION 10: FLBT-RPL SYBIL DETECTION (Reference [28])
+;;; SECTION 10: FLBT-RPL SYBIL DETECTION (Reference [12])
 ;;; Sybil Attack Detection
 ;;;============================================
 

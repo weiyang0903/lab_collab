@@ -304,9 +304,9 @@
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script>
         /* Attack descriptions - literature references kept as comments only:
-         * DIO-Suppression: FLSec-RPL [2], Sinkhole: PRBA [7-9], HelloFlood/VersionNumber/RankDecrease: Hybrid IDS [18-21]
-         * SelectiveForwarding/DoS/RankAttack: RF [10], XAI-Anomaly: [11,13], Sinkhole-UVM: UVM [14-17]
-         * SRPL-*: SRPL-RP [22,24], Sybil: FLBT-RPL [28], Dist-IDS: [25,26], Jamming: [4,5]
+         * DIO-Suppression: FLSec-RPL [9], Sinkhole: PRBA [3], HelloFlood/VersionNumber/RankDecrease: Hybrid IDS [13]
+         * SelectiveForwarding/DoS/RankAttack: RF [11], XAI-Anomaly: [6], Sinkhole-UVM: UVM [14]
+         * SRPL-*: SRPL-RP [2], Sybil: FLBT-RPL [12], Dist-IDS: [10], Jamming: [15]
          */
         const attackDescriptions = {
             'DIO-Suppression': { title: 'DIO Suppression Attack', desc: 'Attacker sends excessive DIO messages with very short intervals to suppress neighbor nodes, disrupting the Trickle algorithm. Detection uses Fuzzy Logic with DIO Counter, DTI, and STIA indicators.' },

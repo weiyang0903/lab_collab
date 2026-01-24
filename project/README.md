@@ -119,8 +119,8 @@ POST /inject_attack
         "type": "Sinkhole",
         "source": "malicious-node-001",
         "target": "gateway-001",
-        "severity": "HIGH",
-        "confidence": 85,
+        "severity": "CRITICAL",
+        "confidence": 95,
         "timestamp": "2024-01-21 10:30:00"
     },
     "rules_fired": 2,
