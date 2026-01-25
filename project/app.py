@@ -114,6 +114,45 @@ def log_inference(message):
     socketio.emit('inference_update', log_entry)
 
 
+def clear_intermediate_facts(node_id):
+    """Clear intermediate classification facts for a specific node to allow re-attack"""
+    global clips_env
+    try:
+        # List of intermediate fact templates used by conflict resolution rules
+        intermediate_templates = [
+            'rf-attack-class',          # RF Multi-Attack classification
+            'dio-threat-score',         # DIO Suppression threat score
+            'jamming-index',            # Jamming classification
+            'xai-anomaly-class',        # XAI anomaly classification
+            'sinkhole-suspicion-class', # PRBA/UVM Sinkhole classification
+        ]
+        
+        # Also clear existing attack alerts for the node to allow re-detection
+        alert_templates = [
+            'attack-alert',
+        ]
+        
+        facts_to_retract = []
+        for fact in clips_env.facts():
+            fact_str = str(fact)
+            # Check if fact belongs to intermediate templates and matches node_id
+            for template in intermediate_templates + alert_templates:
+                if template in fact_str and node_id in fact_str:
+                    facts_to_retract.append(fact)
+                    break
+        
+        # Retract found facts
+        for fact in facts_to_retract:
+            try:
+                fact.retract()
+                log_inference(f"Cleared intermediate fact for node {node_id}")
+            except:
+                pass  # Fact may already be retracted
+                
+    except Exception as e:
+        log_inference(f"Warning: Could not clear intermediate facts: {str(e)}")
+
+
 def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001', **kwargs):
     """Inject an attack indicator fact into CLIPS (RPL-based) - Based on Literature Rules"""
     global clips_env, last_attack_target
@@ -121,6 +160,10 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
     last_attack_target = target
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     current_ts = int(datetime.now().timestamp()) % 10000
+    
+    # Clear intermediate classification facts for the source node to allow re-attack
+    # This enables users to attack the same node multiple times without needing to reset
+    clear_intermediate_facts(source)
     
     # Map attack types to severity and configuration (Based on Literature)
     # Attack configuration mapping
@@ -146,6 +189,8 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
         'Sinkhole': {'severity': 'CRITICAL', 'confidence': 95, 'description': 'Sinkhole Attack - Malicious node forges low Rank to attract traffic'},
         # [3] PRBA: 90-100% → use 92 (slightly lower for bidirectional)
         'Sinkhole-Bidirectional': {'severity': 'HIGH', 'confidence': 92, 'description': 'Bidirectional Behavior Anomaly - Suspicious traffic patterns detected'},
+        # [3]+[14] PRBA/UVM Combined: use 95 (integrated conflict resolution)
+        'Sinkhole-PRBA': {'severity': 'CRITICAL', 'confidence': 95, 'description': 'Sinkhole Attack - PRBA/UVM combined detection with 5-rule scoring'},
         # [11] RF: SF 87.1% → use 87
         'SelectiveForwarding': {'severity': 'HIGH', 'confidence': 87, 'description': 'Selective Forwarding Attack - Abnormal packet drop rate detected'},
         # [11] RF: DoS 85.2% → use 85
@@ -157,7 +202,9 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
         # [14] UVM: 100% with voting → use 100
         'Sinkhole-UVM': {'severity': 'CRITICAL', 'confidence': 100, 'description': 'Sinkhole Attack - Multiple detection rules confirmed malicious behavior'},
         # [13] Hybrid IDS: High accuracy → use 95 (estimated)
-        'HelloFlood': {'severity': 'HIGH', 'confidence': 95, 'description': 'Hello Flood Attack - Control Message Flooding (DIO/DIS/DAO)'},
+        'HelloFlood': {'severity': 'HIGH', 'confidence': 95, 'description': 'Hello Flood Attack - DIO message flooding (threshold: 20)'},
+        # [11] RF Rule 5: DIS Flooding
+        'DIS-Flooding': {'severity': 'HIGH', 'confidence': 87, 'description': 'DIS Flooding Attack - DIS message flooding (threshold: 15)'},
         # [13] Hybrid IDS + [2] SRPL-RP: 98.30% → use 98
         'VersionNumber': {'severity': 'HIGH', 'confidence': 98, 'description': 'Version Number Attack - Forged version triggers DODAG reconstruction'},
         # [10] Distributed IDS: ~100% → use 98
@@ -211,6 +258,30 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
         count = kwargs.get('count', 6)
         facts_to_assert.append(f'(bidirectional-behavior (child-id "{source}") (parent-id "{parent_id}") (count {count}) (timestamp {current_ts}))')
     
+    # ========== PRBA/UVM Sinkhole Combined (reference[3],[14]) ==========
+    elif attack_type == 'Sinkhole-PRBA':
+        # Comprehensive Sinkhole detection using 5 rules:
+        # Rule 1&2: Bidirectional behavior
+        parent_id = kwargs.get('parent_id', 'parent-001')
+        bid_count = kwargs.get('bid_count', 6)
+        # Rule 3: Power consumption
+        power_value = float(kwargs.get('power_value', 85.0))
+        power_threshold = float(kwargs.get('power_threshold', 50.0))
+        # Rule 4: DIO frequency
+        dio_current = kwargs.get('dio_current', 15)
+        dio_previous = kwargs.get('dio_previous', 5)
+        # Rule 5: Rank harmony - NRP > SRN triggers (malicious node fakes low rank)
+        # Default: Parent=100, Node=50, Sink=1 → NRP=50, SRN=49 → NRP > SRN ✓
+        parent_rank = kwargs.get('parent_rank', 100)
+        node_rank = kwargs.get('node_rank', 50)  # Malicious node fakes low rank
+        sink_rank = kwargs.get('sink_rank', 1)
+        
+        # Inject all relevant facts for comprehensive detection
+        facts_to_assert.append(f'(bidirectional-behavior (child-id "{source}") (parent-id "{parent_id}") (count {bid_count}) (timestamp {current_ts}))')
+        facts_to_assert.append(f'(power-consumption (node-id "{source}") (value {power_value}) (threshold {power_threshold}))')
+        facts_to_assert.append(f'(dio-message-stats (node-id "{source}") (current-count {dio_current}) (previous-count {dio_previous}))')
+        facts_to_assert.append(f'(rank-harmony (node-id "{source}") (parent-rank {parent_rank}) (node-rank {node_rank}) (sink-rank {sink_rank}))')
+    
     # ========== RF Multi-Attack (reference[11]) ==========
     elif attack_type == 'SelectiveForwarding':
         drop_rate = kwargs.get('drop_rate', 0.35)
@@ -230,12 +301,18 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
     
     # ========== XAI Anomaly (reference[6]) ==========
     elif attack_type == 'XAI-Anomaly':
-        npc = kwargs.get('npc', 1.0)
-        nc = kwargs.get('nc', 2.0)
-        udp_recv = kwargs.get('udp_recv', 15.0)
-        facts_to_assert.append(f'(npc-record (node-id "{source}") (count {npc}) (timestamp {current_ts}))')
-        facts_to_assert.append(f'(nc-record (node-id "{source}") (count {nc}))')
-        facts_to_assert.append(f'(udp-received (node-id "{source}") (count {udp_recv}))')
+        npc = float(kwargs.get('npc', 1.0))
+        nc = float(kwargs.get('nc', 2.0))
+        udp_recv = float(kwargs.get('udp_recv', 15.0))
+        udp_trans = float(kwargs.get('udp_trans', 2.0))
+        udp_fwd = float(kwargs.get('udp_fwd', 0.3))
+        pf_rate = float(kwargs.get('pf_rate', 0.4))
+        facts_to_assert.append(f'(npc-record (node-id "{source}") (count {npc:.2f}) (timestamp {current_ts}))')
+        facts_to_assert.append(f'(nc-record (node-id "{source}") (count {nc:.2f}))')
+        facts_to_assert.append(f'(udp-received (node-id "{source}") (count {udp_recv:.2f}))')
+        facts_to_assert.append(f'(udp-transmitted (node-id "{source}") (count {udp_trans:.2f}))')
+        facts_to_assert.append(f'(udp-forwarded (node-id "{source}") (count {udp_fwd:.2f}))')
+        facts_to_assert.append(f'(packet-forwarding (node-id "{source}") (rate {pf_rate:.2f}))')
     
     # ========== UVM Voting (reference[14]) ==========
     elif attack_type == 'Sinkhole-UVM':
@@ -246,8 +323,15 @@ def inject_attack_fact(attack_type, source='attacker-node', target='gateway-001'
     # ========== Hybrid IDS (reference[13]) ==========
     elif attack_type == 'HelloFlood':
         dio_count = kwargs.get('dio_count', 50)
+        dis_count = kwargs.get('dis_count', 5)   # Default below threshold for DIO-focused attack
+        dao_count = kwargs.get('dao_count', 5)   # Default below threshold
+        facts_to_assert.append(f'(control-message-counter (node-id "{source}") (dio-count {dio_count}) (dis-count {dis_count}) (dao-count {dao_count}) (dio-threshold 20) (dis-threshold 15) (dao-threshold 10))')
+    
+    # ========== DIS Flooding (RF Rule 5) ==========
+    elif attack_type == 'DIS-Flooding':
         dis_count = kwargs.get('dis_count', 30)
-        dao_count = kwargs.get('dao_count', 20)
+        dio_count = kwargs.get('dio_count', 5)   # Default below threshold
+        dao_count = kwargs.get('dao_count', 5)   # Default below threshold
         facts_to_assert.append(f'(control-message-counter (node-id "{source}") (dio-count {dio_count}) (dis-count {dis_count}) (dao-count {dao_count}) (dio-threshold 20) (dis-threshold 15) (dao-threshold 10))')
             
     elif attack_type == 'VersionNumber':
@@ -779,10 +863,9 @@ def inject_attack():
         kwargs['prev_rank'] = data.get('prev_rank', 150)
         kwargs['curr_rank'] = data.get('curr_rank', 1)
     elif attack_type == 'HelloFlood':
-        kwargs['hello_count'] = data.get('hello_count', 25)
         kwargs['dio_count'] = data.get('dio_count', 50)
+    elif attack_type == 'DIS-Flooding':
         kwargs['dis_count'] = data.get('dis_count', 30)
-        kwargs['dao_count'] = data.get('dao_count', 20)
     elif attack_type == 'VersionNumber':
         kwargs['prev_version'] = data.get('prev_version', 5)
         kwargs['curr_version'] = data.get('curr_version', 15)
@@ -795,6 +878,7 @@ def inject_attack():
         kwargs['retrans_level'] = data.get('retrans_level', 'High')
     elif attack_type == 'SelectiveForwarding':
         kwargs['drop_rate'] = data.get('drop_rate', 0.35)
+        kwargs['threshold'] = data.get('threshold', 0.2)
     elif attack_type == 'DoS':
         kwargs['dpr'] = data.get('dpr', 0.8)
         kwargs['pfr'] = data.get('pfr', 0.9)
@@ -805,6 +889,9 @@ def inject_attack():
         kwargs['npc'] = data.get('npc', 1.0)
         kwargs['nc'] = data.get('nc', 2.0)
         kwargs['udp_recv'] = data.get('udp_recv', 15.0)
+        kwargs['udp_trans'] = data.get('udp_trans', 2.0)
+        kwargs['udp_fwd'] = data.get('udp_fwd', 0.3)
+        kwargs['pf_rate'] = data.get('pf_rate', 0.4)
     elif attack_type == 'Sinkhole-UVM':
         kwargs['abnormal_count'] = data.get('abnormal_count', 4)
         kwargs['total_rules'] = data.get('total_rules', 5)
@@ -828,11 +915,24 @@ def inject_attack():
     elif attack_type == 'Sinkhole-Bidirectional':
         kwargs['parent_id'] = data.get('parent_id', 'parent-001')
         kwargs['count'] = data.get('count', 6)
+    elif attack_type == 'Sinkhole-PRBA':
+        # Comprehensive Sinkhole detection parameters
+        kwargs['parent_id'] = data.get('parent_id', 'parent-001')
+        kwargs['bid_count'] = data.get('bid_count', 6)
+        kwargs['power_value'] = data.get('power_value', 85.0)
+        kwargs['power_threshold'] = data.get('power_threshold', 50.0)
+        kwargs['dio_current'] = data.get('dio_current', 15)
+        kwargs['dio_previous'] = data.get('dio_previous', 5)
+        kwargs['parent_rank'] = data.get('parent_rank', 100)
+        kwargs['node_rank'] = data.get('node_rank', 150)
+        kwargs['sink_rank'] = data.get('sink_rank', 10)
     elif attack_type == 'Sybil':
         kwargs['ics'] = data.get('ics', 0.9)
         kwargs['scs'] = data.get('scs', 0.8)
         kwargs['res'] = data.get('res', 0.7)
         kwargs['rms'] = data.get('rms', 0.85)
+        kwargs['bis'] = data.get('bis', 0.75)
+        kwargs['tds'] = data.get('tds', 0.6)
     elif attack_type == 'Dist-IDS-Violation':
         kwargs['violation_count'] = data.get('violation_count', 6)
         kwargs['threshold'] = data.get('threshold', 5)
@@ -851,34 +951,33 @@ def inject_attack():
         dio_threshold = 20
         if dio_count <= dio_threshold:
             warnings.append(f"⚠️ Ineffective Attack: DIO count ({dio_count}) must exceed threshold ({dio_threshold}) to trigger detection.")
+    elif attack_type == 'DIS-Flooding':
+        dis_count = kwargs.get('dis_count', 30)
+        dis_threshold = 15
+        if dis_count <= dis_threshold:
+            warnings.append(f"⚠️ Ineffective Attack: DIS count ({dis_count}) must exceed threshold ({dis_threshold}) to trigger detection.")
     elif attack_type == 'VersionNumber':
         prev_version = kwargs.get('prev_version', 5)
         curr_version = kwargs.get('curr_version', 15)
         if curr_version <= prev_version:
             warnings.append(f"⚠️ Ineffective Attack: Forged Version ({curr_version}) must be greater than Original Version ({prev_version}).")
-    elif attack_type == 'DIO-Suppression':
-        dio_level = kwargs.get('dio_level', 'High')
-        dti_level = kwargs.get('dti_level', 'Low')
-        stia_level = kwargs.get('stia_level', 'Low')
-        # Valid attack combinations:
-        # - DIO=High, DTI=Low, STIA=Low → Malicious
-        # - DIO=High, DTI=Low, STIA=Medium → Quarantine
-        # - DIO=Low, DTI=Low, STIA=Low → Victim
-        # - DIO=Medium, DTI=Medium, STIA=Medium → Normal
-        valid_combinations = [
-            ('High', 'Low', 'Low'),      # Malicious
-            ('High', 'Low', 'Medium'),   # Quarantine
-            ('Low', 'Low', 'Low'),       # Victim
-            ('Medium', 'Medium', 'Medium')  # Normal
-        ]
-        current_combo = (dio_level, dti_level, stia_level)
-        if current_combo not in valid_combinations:
-            warnings.append(f"⚠️ Ineffective Attack: The combination DIO={dio_level}, DTI={dti_level}, STIA={stia_level} does not match any detection rule.")
-            warnings.append(f"💡 Valid combinations for detection:")
-            warnings.append(f"   • DIO=High + DTI=Low + STIA=Low → MALICIOUS (Block Permanently)")
-            warnings.append(f"   • DIO=High + DTI=Low + STIA=Medium → QUARANTINE (Isolate for Observation)")
-            warnings.append(f"   • DIO=Low + DTI=Low + STIA=Low → VICTIM (Possibly Suppressed)")
-            warnings.append(f"   • DIO=Medium + DTI=Medium + STIA=Medium → NORMAL")
+    elif attack_type == 'SelectiveForwarding':
+        drop_rate = kwargs.get('drop_rate', 0.35)
+        threshold = kwargs.get('threshold', 0.2)
+        if drop_rate <= threshold:
+            warnings.append(f"⚠️ Ineffective Attack: PDRR ({drop_rate}) must be greater than threshold ({threshold}) to trigger detection.")
+    elif attack_type == 'DoS':
+        dpr = kwargs.get('dpr', 0.8)
+        pfr = kwargs.get('pfr', 0.9)
+        if dpr <= 0.5 or pfr <= 0.6:
+            warnings.append(f"⚠️ Ineffective Attack: Both DPR ({dpr}) > 0.5 AND PFR ({pfr}) > 0.6 required to trigger detection.")
+    elif attack_type == 'RankAttack':
+        prev_rank = kwargs.get('prev_rank', 200)
+        curr_rank = kwargs.get('curr_rank', 50)
+        if curr_rank >= prev_rank / 2:
+            warnings.append(f"⚠️ Ineffective Attack: Current Rank ({curr_rank}) must be less than half of Previous Rank ({prev_rank}/2 = {prev_rank//2}).")
+    # DIO-Suppression: All 27 combinations are now valid - handled by threat score calculation
+    # No ineffective attack check needed - the system classifies all combinations
     
     # Inject the attack fact
     success, result = inject_attack_fact(attack_type, source, target, **kwargs)

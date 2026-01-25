@@ -1,5 +1,92 @@
 # IoT-Guardian Expert System - Technical Documentation
 
+---
+
+## System Overview
+
+### What is IoT-Guardian?
+
+**IoT-Guardian** is an educational simulation platform and learning environment designed to help users understand, explore, and experiment with IoT network security concepts. Rather than monitoring real-world networks, IoT-Guardian provides a **safe sandbox environment** where users can design their own IoT network topologies, simulate various routing protocol attacks, and observe how an expert system detects and responds to these threats—all without any risk to actual infrastructure.
+
+The platform focuses on the **RPL (Routing Protocol for Low-Power and Lossy Networks)** protocol, which is the standardized routing protocol for resource-constrained IoT devices. By leveraging rule-based artificial intelligence built upon the **CLIPS (C Language Integrated Production System)** inference engine, IoT-Guardian demonstrates how expert systems can perform forward-chaining reasoning on network behaviors to identify potential security threats with high accuracy and explainability.
+
+**In essence, IoT-Guardian is a "flight simulator" for IoT security**—just as pilots train in simulators before flying real aircraft, security professionals and students can use IoT-Guardian to practice attack detection and defense strategies in a controlled, consequence-free environment.
+
+### Who is the Target User?
+
+IoT-Guardian is designed primarily as an **educational and training tool** for several user groups:
+
+**Students and Learners** studying cybersecurity, artificial intelligence, or IoT systems form the primary audience. The platform provides hands-on experience with expert systems, fuzzy logic-based detection, and rule-based reasoning in an interactive environment. Students can visually observe how different attack parameters trigger different detection rules, making abstract security concepts tangible and understandable.
+
+**Educators and Instructors** can utilize IoT-Guardian as a teaching aid in courses covering network security, expert systems, or IoT architecture. The system's transparent inference paths allow instructors to walk through detection logic step-by-step, demonstrating how rules fire and conclusions are reached.
+
+**Security Researchers and Analysts** can use the platform to prototype and validate detection algorithms. Before implementing detection mechanisms in production systems, researchers can test their rule logic in IoT-Guardian's simulation environment to verify correctness and observe behavior across different attack scenarios.
+
+**IoT Developers and System Integrators** who want to understand potential threats to RPL-based networks can use the platform to familiarize themselves with attack vectors and defense strategies, improving their security awareness when designing real systems.
+
+### What Does the System Do?
+
+IoT-Guardian provides a complete **simulation and learning experience** through several integrated features:
+
+**Custom Network Topology Design** allows users to create their own virtual IoT networks. Using the interactive Topology Designer, users can add nodes (gateways, routers, sensors, cameras, actuators), connect them with edges, and save their custom topologies. This visual approach helps users understand network structure and how attacks propagate through connected devices.
+
+**Attack Simulation Laboratory (Hacker Lab)** is the core interactive feature. Users can select from over 10 different attack types derived from academic literature, configure attack parameters (such as DIO message frequency, packet drop rates, or rank values), choose source and target nodes, and "launch" simulated attacks. The system then processes these parameters through the expert system to demonstrate detection outcomes—no real network traffic is generated or harmed.
+
+**Real-time Expert System Inference** demonstrates how rule-based AI works. When an attack is simulated, users can observe which facts are asserted into the CLIPS working memory, which rules fire based on pattern matching, and what conclusions (alerts and defense recommendations) are generated. This transparent process makes the "black box" of AI detection visible and educational.
+
+**Visual Feedback and Status Updates** bring the simulation to life. The network topology view updates in real-time with color-coded node status: red for malicious nodes, orange for quarantined nodes, purple for victim nodes, and green for healthy nodes. This immediate visual feedback reinforces learning by showing the consequences of different attack scenarios.
+
+**Detailed Diagnostic Reports** summarize each simulation session. After launching an attack, users can view comprehensive reports including the attack type, severity assessment, triggered rules, inference paths, and recommended defense actions. These reports serve as learning artifacts that students can study and instructors can evaluate.
+
+**Inference Path Explanation** ensures learning transparency. For every alert generated, the system displays the complete reasoning chain—which conditions were met, which rules fired, and how conclusions were derived. This explainable approach helps users understand not just *what* was detected, but *why* and *how*.
+
+### What is the Purpose?
+
+The fundamental purpose of IoT-Guardian is to **provide a safe, interactive environment for learning about IoT security through hands-on experimentation**.
+
+**Bridging Theory and Practice** is the primary goal. Academic papers describe numerous attack techniques and detection algorithms, but reading about attacks is fundamentally different from experiencing them. IoT-Guardian allows users to actively engage with security concepts—designing networks, configuring attacks, observing detection, and analyzing results—transforming passive learning into active discovery.
+
+**Demystifying Expert Systems** is another key objective. Many students learn about rule-based AI in textbooks but never see a working implementation. IoT-Guardian provides a tangible example of how CLIPS rules, pattern matching, and forward-chaining inference work together in a practical application. Users can modify attack parameters and immediately see how different inputs lead to different rule activations.
+
+**Building Security Intuition** through experimentation helps users develop practical understanding. By trying different attack configurations and observing outcomes, users naturally learn which parameter combinations are dangerous, which behaviors indicate specific attack types, and how defense mechanisms should respond. This experiential learning builds intuition that transfers to real-world security work.
+
+**Supporting Coursework and Research** with a ready-to-use platform saves educators and researchers significant setup time. Rather than building simulation environments from scratch, they can leverage IoT-Guardian's existing infrastructure to focus on teaching concepts or testing hypotheses.
+
+**Enabling Safe Experimentation** without legal or ethical concerns is crucial. Attacking real networks—even for educational purposes—raises serious legal and ethical issues. IoT-Guardian eliminates these concerns by providing a completely virtual environment where users can freely experiment with attack techniques without any real-world consequences.
+
+### What IoT-Guardian is NOT
+
+To clarify the system's scope and prevent misuse:
+
+**IoT-Guardian is NOT a real network monitoring tool.** It does not connect to actual IoT devices, capture real network traffic, or monitor production infrastructure. All network data is simulated within the application.
+
+**IoT-Guardian is NOT a hacking tool.** The "Hacker Lab" simulates attack scenarios for educational purposes only. It cannot and does not generate actual malicious traffic or attack real systems.
+
+**IoT-Guardian is NOT a production security solution.** While the detection rules are derived from peer-reviewed research, the system is designed for learning and demonstration, not for protecting real IoT deployments.
+
+### System Architecture Summary
+
+IoT-Guardian employs a modern web-based architecture optimized for interactive learning:
+
+The **Backend Layer** consists of a Flask application integrated with the CLIPS inference engine. This layer handles attack simulation requests, executes rule-based inference, and manages simulation state. WebSocket connections via Flask-SocketIO enable real-time updates across all interface components.
+
+The **Knowledge Base Layer** contains 1,687 lines of CLIPS rules organized by literature source. Each rule encapsulates detection logic from peer-reviewed research papers, with confidence values calibrated to reported accuracy rates. This rule base serves as both a functional detection engine and an educational reference.
+
+The **Simulation Layer** manages virtual network state, including topology definitions, node status, and attack history. All data exists only in memory and browser storage—no external network connections are made.
+
+The **Presentation Layer** comprises five specialized interfaces designed for different aspects of the learning experience:
+- **Dashboard** - Overview of simulation metrics and system status
+- **Hacker Lab** - Attack configuration and simulation launcher
+- **Topology Designer** - Interactive network topology creation
+- **Defense Center** - Real-time alert and inference monitoring  
+- **Report Generator** - Comprehensive attack analysis documentation
+
+The **Verification Layer** provides formal methods support through CNF conversion and SAT solving, demonstrating how expert system rules can be mathematically verified for consistency—an advanced topic for users interested in formal verification techniques.
+
+Together, these components create a comprehensive educational platform that transforms abstract IoT security concepts into interactive, observable, and explorable learning experiences.
+
+---
+
 ## 1. Programming Languages & Tools
 
 ### Core Technologies

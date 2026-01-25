@@ -106,7 +106,8 @@
                             <select id="attack-type" onchange="updateAttackParams()">
                                 <optgroup label="📡 DIO/Control Message Attacks">
                                     <option value="DIO-Suppression">DIO Suppression Attack</option>
-                                    <option value="HelloFlood">Hello Flood Attack</option>
+                                    <option value="HelloFlood">Hello Flood (DIO Flooding)</option>
+                                    <option value="DIS-Flooding">DIS Flooding Attack</option>
                                     <option value="VersionNumber">Version Number Attack</option>
                                 </optgroup>
                                 <optgroup label="📊 Rank Manipulation Attacks">
@@ -125,6 +126,7 @@
                                 <optgroup label="🎭 Identity & Behavior Attacks">
                                     <option value="Sybil">Sybil Attack</option>
                                     <option value="Sinkhole-Bidirectional">Sinkhole Bidirectional</option>
+                                    <option value="Sinkhole-PRBA">Sinkhole PRBA/UVM Combined</option>
                                     <option value="Sinkhole-UVM">Sinkhole UVM Voting</option>
                                 </optgroup>
                                 <optgroup label="🔍 Anomaly Detection">
@@ -160,14 +162,22 @@
                                 <div class="form-group"><label>Original Rank Value</label><input type="number" id="prev-rank" value="150" min="50" max="500"></div>
                                 <div class="form-group"><label>Forged Rank Value</label><input type="number" id="curr-rank" value="1" min="1" max="100"></div>
                             </div>
-                            <!-- HelloFlood params -->
+                            <!-- HelloFlood params (DIO focused) -->
                             <div id="hello-params" style="display:none;">
-                                <div class="param-row">
-                                    <div class="form-group"><label>DIO Message Count</label><input type="number" id="dio-count" value="50" min="21" max="200"></div>
-                                    <div class="form-group"><label>DIS Message Count</label><input type="number" id="dis-count" value="30" min="16" max="100"></div>
+                                <div class="param-hint" style="color:#ffd700;font-size:0.85em;margin-bottom:8px;">
+                                    ⚠️ Thresholds: DIO > 20 triggers attack
                                 </div>
                                 <div class="param-row">
-                                    <div class="form-group"><label>DAO Message Count</label><input type="number" id="dao-count" value="20" min="11" max="100"></div>
+                                    <div class="form-group"><label>DIO Count (threshold: 20)</label><input type="number" id="dio-count" value="50" min="1" max="200"></div>
+                                </div>
+                            </div>
+                            <!-- DIS-Flooding params -->
+                            <div id="dis-flooding-params" style="display:none;">
+                                <div class="param-hint" style="color:#ffd700;font-size:0.85em;margin-bottom:8px;">
+                                    ⚠️ Thresholds: DIS > 15 triggers attack
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>DIS Count (threshold: 15)</label><input type="number" id="dis-flood-count" value="30" min="1" max="100"></div>
                                 </div>
                             </div>
                             <!-- VersionNumber params -->
@@ -183,28 +193,54 @@
                                 </div>
                             </div>
                             <!-- SelectiveForwarding params -->
-                            <div class="param-row" id="selective-params" style="display:none;">
-                                <div class="form-group"><label>Packet Drop Rate</label><input type="number" id="drop-rate" value="0.35" min="0.21" max="1.0" step="0.05"></div>
-                                <div class="form-group"><label>Threshold</label><input type="number" id="drop-threshold" value="0.2" min="0.1" max="0.5" step="0.05"></div>
+                            <div id="selective-params" style="display:none;">
+                                <div class="param-hint" style="color:#ffd700;font-size:0.85em;margin-bottom:8px;">
+                                    ⚠️ Attack triggers when: PDRR > Threshold
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>Packet Drop Rate (PDRR)</label><input type="number" id="drop-rate" value="0.35" min="0.0" max="1.0" step="0.05"></div>
+                                    <div class="form-group"><label>Detection Threshold</label><input type="number" id="drop-threshold" value="0.2" min="0.1" max="0.5" step="0.05"></div>
+                                </div>
                             </div>
                             <!-- DoS params -->
-                            <div class="param-row" id="dos-params" style="display:none;">
-                                <div class="form-group"><label>Duplicate Packet Rate</label><input type="number" id="dpr" value="0.8" min="0.51" max="1.0" step="0.05"></div>
-                                <div class="form-group"><label>Forwarding Rate</label><input type="number" id="pfr" value="0.9" min="0.61" max="1.0" step="0.05"></div>
+                            <div id="dos-params" style="display:none;">
+                                <div class="param-hint" style="color:#ffd700;font-size:0.85em;margin-bottom:8px;">
+                                    ⚠️ Attack triggers when: DPR > 0.5 AND PFR > 0.6
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>Duplicate Packet Rate (threshold: 0.5)</label><input type="number" id="dpr" value="0.8" min="0.0" max="1.0" step="0.05"></div>
+                                    <div class="form-group"><label>Forwarding Rate (threshold: 0.6)</label><input type="number" id="pfr" value="0.9" min="0.0" max="1.0" step="0.05"></div>
+                                </div>
                             </div>
                             <!-- RankAttack params -->
-                            <div class="param-row" id="rankattack-params" style="display:none;">
-                                <div class="form-group"><label>Previous Rank</label><input type="number" id="ra-prev-rank" value="200" min="100" max="500"></div>
-                                <div class="form-group"><label>Current Rank</label><input type="number" id="ra-curr-rank" value="50" min="1" max="100"></div>
+                            <div id="rankattack-params" style="display:none;">
+                                <div class="param-hint" style="color:#ffd700;font-size:0.85em;margin-bottom:8px;">
+                                    ⚠️ Attack triggers when: Current Rank < Previous Rank / 2
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>Previous Rank</label><input type="number" id="ra-prev-rank" value="200" min="100" max="500"></div>
+                                    <div class="form-group"><label>Current Rank (must be < prev/2)</label><input type="number" id="ra-curr-rank" value="50" min="1" max="249"></div>
+                                </div>
                             </div>
                             <!-- XAI-Anomaly params -->
                             <div id="xai-params" style="display:none;">
                                 <div class="param-row">
-                                    <div class="form-group"><label>Parent Changes (NPC)</label><input type="number" id="npc" value="1.0" min="0" max="10" step="0.5"></div>
-                                    <div class="form-group"><label>Number of Children</label><input type="number" id="nc" value="2.0" min="0" max="20" step="0.5"></div>
+                                    <div class="form-group"><label>Parent Changes (NPC)</label><input type="number" id="npc" value="1.0" min="0" max="10" step="0.1"></div>
+                                    <div class="form-group"><label>Number of Children (NC)</label><input type="number" id="nc" value="2.0" min="0" max="20" step="0.1"></div>
                                 </div>
                                 <div class="param-row">
-                                    <div class="form-group"><label>UDP Received Count</label><input type="number" id="udp-recv" value="15.0" min="0" max="100" step="1"></div>
+                                    <div class="form-group"><label>UDP Received</label><input type="number" id="udp-recv" value="15.0" min="0" max="100" step="0.5"></div>
+                                    <div class="form-group"><label>UDP Transmitted</label><input type="number" id="udp-trans" value="2.0" min="0" max="20" step="0.1"></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>UDP Forwarded</label><input type="number" id="udp-fwd" value="0.3" min="0" max="10" step="0.05"></div>
+                                    <div class="form-group"><label>Packet Forwarding Rate</label><input type="number" id="pf-rate" value="0.4" min="0" max="1" step="0.05"></div>
+                                </div>
+                                <div class="param-hint">
+                                    <small>
+                                        💡 <b>Rule 1 (Sinkhole)</b>: NPC≤1.62, NC>1.74, UDP_recv>11.62<br>
+                                        💡 <b>Rule 4 (Blackhole)</b>: NPC>0.37, NC≤2.44, UDP_trans>1.62, PF≤0.58
+                                    </small>
                                 </div>
                             </div>
                             <!-- Sinkhole-UVM params -->
@@ -254,6 +290,38 @@
                                 <div class="form-group"><label>Parent Node ID</label><input type="text" id="parent-id" value="parent-001"></div>
                                 <div class="form-group"><label>Behavior Count</label><input type="number" id="bid-count" value="6" min="4" max="20"></div>
                             </div>
+                            <!-- Sinkhole-PRBA Combined params -->
+                            <div id="sinkhole-prba-params" style="display:none;">
+                                <div class="param-hint" style="color:#ffd700;font-size:0.85em;margin-bottom:8px;">
+                                    ⚠️ Combined 5-Rule Detection: Score 4-5 = CRITICAL, 3 = HIGH, 2 = MEDIUM, 1 = LOW
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>Parent Node ID</label><input type="text" id="prba-parent-id" value="parent-001"></div>
+                                    <div class="form-group"><label>Bidirectional Count (>5 triggers)</label><input type="number" id="prba-bid-count" value="6" min="1" max="20"></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>Power Value (>threshold triggers)</label><input type="number" id="prba-power-value" value="85.0" min="10" max="200" step="0.5"></div>
+                                    <div class="form-group"><label>Power Threshold</label><input type="number" id="prba-power-threshold" value="50.0" min="10" max="100" step="0.5"></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>DIO Current (>prev triggers)</label><input type="number" id="prba-dio-current" value="15" min="1" max="100"></div>
+                                    <div class="form-group"><label>DIO Previous</label><input type="number" id="prba-dio-previous" value="5" min="1" max="50"></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>Parent Rank</label><input type="number" id="prba-parent-rank" value="100" min="1" max="500"></div>
+                                    <div class="form-group"><label>Node Rank (malicious)</label><input type="number" id="prba-node-rank" value="50" min="1" max="500"></div>
+                                    <div class="form-group"><label>Sink Rank</label><input type="number" id="prba-sink-rank" value="1" min="1" max="100"></div>
+                                </div>
+                                <div class="param-hint">
+                                    <small>
+                                        💡 <b>Rule 1</b>: Bidirectional > 0<br>
+                                        💡 <b>Rule 2</b>: Bidirectional Count > 5<br>
+                                        💡 <b>Rule 3</b>: Power > Threshold<br>
+                                        💡 <b>Rule 4</b>: DIO Current > DIO Previous<br>
+                                        💡 <b>Rule 5</b>: NRP > SRN (|Parent-Node| > |Sink-Node| = 恶意节点伪造低Rank)
+                                    </small>
+                                </div>
+                            </div>
                             <!-- Sybil params -->
                             <div id="sybil-params" style="display:none;">
                                 <div class="param-row">
@@ -263,6 +331,10 @@
                                 <div class="param-row">
                                     <div class="form-group"><label>Resource Score (RES)</label><input type="number" id="res" value="0.7" min="0.71" max="1.0" step="0.05"></div>
                                     <div class="form-group"><label>Rank Manipulation (RMS)</label><input type="number" id="rms" value="0.85" min="0.71" max="1.0" step="0.05"></div>
+                                </div>
+                                <div class="param-row">
+                                    <div class="form-group"><label>Behavior Inconsistency Score (BIS)</label><input type="number" id="bis" value="0.75" min="0.71" max="1.0" step="0.05"></div>
+                                    <div class="form-group"><label>Time-based Detection Score (TDS)</label><input type="number" id="tds" value="0.8" min="0.71" max="1.0" step="0.05"></div>
                                 </div>
                             </div>
                             <!-- Dist-IDS-Violation params -->
@@ -312,7 +384,8 @@
         const attackDescriptions = {
             'DIO-Suppression': { title: 'DIO Suppression Attack', desc: 'Attacker sends excessive DIO messages with very short intervals to suppress neighbor nodes, disrupting the Trickle algorithm. Detection uses Fuzzy Logic with DIO Counter, DTI, and STIA indicators.' },
             'Sinkhole': { title: 'Sinkhole Attack', desc: 'The attacker forges an extremely low Rank value (e.g., 1), making itself appear as the optimal path to the DODAG Root, thereby attracting and intercepting network traffic.' },
-            'HelloFlood': { title: 'Hello Flood Attack', desc: 'The attacker broadcasts excessive DIO/DIS/DAO control messages, consuming network bandwidth and node energy, causing network congestion and resource exhaustion.' },
+            'HelloFlood': { title: 'Hello Flood (DIO Flooding)', desc: 'RF Rule 4: The attacker broadcasts excessive DIO messages. Attack triggers when DIO_Counter > 20 (threshold).' },
+            'DIS-Flooding': { title: 'DIS Flooding Attack', desc: 'RF Rule 5: The attacker broadcasts excessive DIS (DODAG Information Solicitation) messages. Attack triggers when DIS_Counter > 15 (threshold).' },
             'VersionNumber': { title: 'Version Number Attack', desc: 'The attacker forges an abnormally high DODAG Version Number, forcing the entire network to rebuild routing topology, consuming significant resources.' },
             'SelectiveForwarding': { title: 'Selective Forwarding Attack', desc: 'A malicious node selectively drops certain packets while forwarding others, making it difficult to detect. Detected by monitoring packet drop rate.' },
             'Sybil': { title: 'Sybil Attack', desc: 'The attacker creates multiple fake identities using various indicators: Identity Consistency, Signal Consistency, Resource usage, Rank Manipulation, and Behavior patterns.' },
@@ -326,6 +399,7 @@
             'SRPL-RankDecrease': { title: 'Rank Decrease Attack', desc: 'Detects abnormal Rank decrease where current Rank drops significantly below old Rank and minimum sibling Rank, beyond parent switch threshold.' },
             'SRPL-RankIncrease': { title: 'Rank Increase Attack', desc: 'Detects abnormal Rank increase where current Rank exceeds old Rank and minimum child Rank, indicating potential manipulation.' },
             'Sinkhole-Bidirectional': { title: 'Sinkhole Bidirectional Attack', desc: 'Detects Sinkhole through bidirectional traffic patterns between child and parent nodes. High count indicates traffic interception.' },
+            'Sinkhole-PRBA': { title: 'Sinkhole PRBA/UVM Combined', desc: 'Comprehensive Sinkhole detection using 5 rules: Bidirectional behavior, Frequent bidirectional, Power consumption, DIO frequency, and Rank harmony. Score 4-5 = CRITICAL, 3 = HIGH.' },
             'Dist-IDS-Violation': { title: 'Security Violation Alert', desc: 'Distributed intrusion detection system tracks rule violations across network. Alert triggered when violation count exceeds threshold within time window.' }
         };
         
@@ -335,7 +409,7 @@
             const paramSections = ['dio-suppression-params', 'sinkhole-params', 'hello-params', 'version-params', 
                 'jamming-params', 'selective-params', 'dos-params', 'rankattack-params', 'xai-params', 
                 'uvm-params', 'rankdecrease-params', 'srpl-malicious-params', 'srpl-decrease-params', 
-                'srpl-increase-params', 'bidirectional-params', 'sybil-params', 'dist-ids-params'];
+                'srpl-increase-params', 'bidirectional-params', 'sinkhole-prba-params', 'sybil-params', 'dist-ids-params', 'dis-flooding-params'];
             paramSections.forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
             
             // Show relevant params
@@ -343,6 +417,7 @@
                 'DIO-Suppression': 'dio-suppression-params',
                 'Sinkhole': 'sinkhole-params',
                 'HelloFlood': 'hello-params',
+                'DIS-Flooding': 'dis-flooding-params',
                 'VersionNumber': 'version-params',
                 'Jamming': 'jamming-params',
                 'SelectiveForwarding': 'selective-params',
@@ -355,6 +430,7 @@
                 'SRPL-RankDecrease': 'srpl-decrease-params',
                 'SRPL-RankIncrease': 'srpl-increase-params',
                 'Sinkhole-Bidirectional': 'bidirectional-params',
+                'Sinkhole-PRBA': 'sinkhole-prba-params',
                 'Sybil': 'sybil-params',
                 'Dist-IDS-Violation': 'dist-ids-params'
             };
@@ -387,8 +463,8 @@
                 requestBody.curr_rank = parseInt(document.getElementById('curr-rank').value);
             } else if (attackType === 'HelloFlood') {
                 requestBody.dio_count = parseInt(document.getElementById('dio-count').value);
-                requestBody.dis_count = parseInt(document.getElementById('dis-count').value);
-                requestBody.dao_count = parseInt(document.getElementById('dao-count').value);
+            } else if (attackType === 'DIS-Flooding') {
+                requestBody.dis_count = parseInt(document.getElementById('dis-flood-count').value);
             } else if (attackType === 'VersionNumber') {
                 requestBody.prev_version = parseInt(document.getElementById('prev-version').value);
                 requestBody.curr_version = parseInt(document.getElementById('curr-version').value);
@@ -408,6 +484,9 @@
                 requestBody.npc = parseFloat(document.getElementById('npc').value);
                 requestBody.nc = parseFloat(document.getElementById('nc').value);
                 requestBody.udp_recv = parseFloat(document.getElementById('udp-recv').value);
+                requestBody.udp_trans = parseFloat(document.getElementById('udp-trans').value);
+                requestBody.udp_fwd = parseFloat(document.getElementById('udp-fwd').value);
+                requestBody.pf_rate = parseFloat(document.getElementById('pf-rate').value);
             } else if (attackType === 'Sinkhole-UVM') {
                 requestBody.abnormal_count = parseInt(document.getElementById('abnormal-count').value);
                 requestBody.total_rules = parseInt(document.getElementById('total-rules').value);
@@ -431,11 +510,23 @@
             } else if (attackType === 'Sinkhole-Bidirectional') {
                 requestBody.parent_id = document.getElementById('parent-id').value;
                 requestBody.count = parseInt(document.getElementById('bid-count').value);
+            } else if (attackType === 'Sinkhole-PRBA') {
+                requestBody.parent_id = document.getElementById('prba-parent-id').value;
+                requestBody.bid_count = parseInt(document.getElementById('prba-bid-count').value);
+                requestBody.power_value = parseFloat(document.getElementById('prba-power-value').value);
+                requestBody.power_threshold = parseFloat(document.getElementById('prba-power-threshold').value);
+                requestBody.dio_current = parseInt(document.getElementById('prba-dio-current').value);
+                requestBody.dio_previous = parseInt(document.getElementById('prba-dio-previous').value);
+                requestBody.parent_rank = parseInt(document.getElementById('prba-parent-rank').value);
+                requestBody.node_rank = parseInt(document.getElementById('prba-node-rank').value);
+                requestBody.sink_rank = parseInt(document.getElementById('prba-sink-rank').value);
             } else if (attackType === 'Sybil') {
                 requestBody.ics = parseFloat(document.getElementById('ics').value);
                 requestBody.scs = parseFloat(document.getElementById('scs').value);
                 requestBody.res = parseFloat(document.getElementById('res').value);
                 requestBody.rms = parseFloat(document.getElementById('rms').value);
+                requestBody.bis = parseFloat(document.getElementById('bis').value);
+                requestBody.tds = parseFloat(document.getElementById('tds').value);
             } else if (attackType === 'Dist-IDS-Violation') {
                 requestBody.violation_count = parseInt(document.getElementById('violation-count').value);
                 requestBody.threshold = parseInt(document.getElementById('violation-threshold').value);
@@ -449,14 +540,22 @@
                 btn.classList.remove('loading');
                 btn.innerHTML = '<i class="fas fa-bolt"></i> Launch Attack';
                 if (data.success) { 
-                    addConsoleLog(`Attack injection successful!`, 'success'); 
-                    addConsoleLog(`Rules fired: ${data.rules_fired}`, data.rules_fired > 0 ? 'success' : 'info'); 
-                    
-                    // Show warnings if attack parameters are ineffective
+                    // Show warnings FIRST if attack parameters are ineffective
                     if (data.warnings && data.warnings.length > 0) {
+                        addConsoleLog(`⚠️ Attack parameters may not trigger detection!`, 'error');
                         data.warnings.forEach(warning => {
                             addConsoleLog(warning, 'error');
                         });
+                    }
+                    
+                    // Then show injection status
+                    const hasAlerts = data.alerts && data.alerts.length > 0;
+                    if (hasAlerts) {
+                        addConsoleLog(`✅ Attack detected! Rules fired: ${data.rules_fired}`, 'success');
+                    } else if (data.rules_fired > 0) {
+                        addConsoleLog(`ℹ️ Rules fired: ${data.rules_fired} (classified as Normal)`, 'info');
+                    } else {
+                        addConsoleLog(`ℹ️ No detection rules triggered`, 'info');
                     }
                     
                     // Save to localStorage for Report page synchronization
