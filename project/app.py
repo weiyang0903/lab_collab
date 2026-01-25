@@ -590,9 +590,11 @@ def parse_defense_fact(fact):
             'action_id': fact['action-id'] if hasattr(fact, '__getitem__') else 0,
             'action_type': str(fact['action-type']) if hasattr(fact, '__getitem__') else 'UNKNOWN',
             'target': str(fact['target-node']) if hasattr(fact, '__getitem__') else 'N/A',
+            'target_node': str(fact['target-node']) if hasattr(fact, '__getitem__') else 'N/A',
             'priority': str(fact['priority']) if hasattr(fact, '__getitem__') else 'MEDIUM',
             'description': str(fact['description']) if hasattr(fact, '__getitem__') else str(fact),
-            'status': 'pending'
+            'status': 'pending',
+            'timestamp': datetime.now().strftime("%H:%M:%S")
         }
     except:
         fact_str = str(fact)
@@ -600,9 +602,11 @@ def parse_defense_fact(fact):
             'action_id': 0,
             'action_type': 'GENERIC',
             'target': 'N/A',
+            'target_node': 'N/A',
             'priority': 'MEDIUM',
             'description': fact_str,
-            'status': 'pending'
+            'status': 'pending',
+            'timestamp': datetime.now().strftime("%H:%M:%S")
         }
 
 

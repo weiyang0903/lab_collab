@@ -156,7 +156,8 @@
             if (stream.querySelector('.empty-state')) stream.innerHTML = '';
             factCount++;
             const factType = fact.type || 'unknown';
-            const time = new Date().toLocaleTimeString();
+            // Use the timestamp from the fact if available, otherwise use current time
+            const time = fact.timestamp || (fact.slots && fact.slots.timestamp) || new Date().toLocaleTimeString();
             const factHtml = document.createElement('div');
             factHtml.className = `fact-item ${factType.replace(/-/g, '-')}`;
             let slotsHtml = '';
@@ -214,7 +215,13 @@
         function clearInference() { 
             document.getElementById('inference-panel').innerHTML = `<div class="empty-state"><i class="fas fa-cogs"></i><p>Waiting for inference engine...</p></div>`; 
             ruleCount = 0; 
-            updateCounts(); 
+            updateCounts();
+            // Also clear localStorage and server data to sync with Report page
+            localStorage.removeItem('latestAttack');
+            fetch('/api/clear_defense_data', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => console.log('Server data cleared:', data))
+                .catch(err => console.error('Error clearing server data:', err));
         }
         function exportData() { const data = { timestamp: new Date().toISOString(), stats: { factCount, ruleCount, alertCount, defenseCount }, facts, inferences }; const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `iot-guardian-defense-${Date.now()}.json`; a.click(); }
         
@@ -229,11 +236,13 @@
                             alertCount++;
                             addFactToStream({ 
                                 type: 'attack-alert', 
+                                timestamp: alert.timestamp,
                                 slots: { 
                                     'attack-type': alert.attack_type || alert.type, 
                                     'node-id': alert.node_id || alert.node, 
                                     'severity': alert.level || alert.severity, 
-                                    'message': alert.message 
+                                    'message': alert.message,
+                                    'timestamp': alert.timestamp
                                 } 
                             });
                         });
@@ -244,11 +253,13 @@
                             defenseCount++;
                             addFactToStream({ 
                                 type: 'defense-action', 
+                                timestamp: def.timestamp,
                                 slots: { 
                                     'action': def.action_type, 
                                     'target': def.target_node, 
                                     'description': def.description, 
-                                    'priority': def.priority 
+                                    'priority': def.priority,
+                                    'timestamp': def.timestamp
                                 } 
                             });
                         });
@@ -305,13 +316,13 @@
             socket.on('new_alert', function(data) { 
                 console.log('Defense received alert:', data);
                 alertCount++; 
-                addFactToStream({ type: 'attack-alert', slots: { 'attack-type': data.attack_type || data.type, 'node-id': data.node_id || data.node, 'severity': data.level || data.severity, 'message': data.message } }); 
+                addFactToStream({ type: 'attack-alert', timestamp: data.timestamp, slots: { 'attack-type': data.attack_type || data.type, 'node-id': data.node_id || data.node, 'severity': data.level || data.severity, 'message': data.message, 'timestamp': data.timestamp } }); 
                 updateCounts(); 
             });
             socket.on('new_defense', function(data) { 
                 console.log('Defense received defense:', data);
                 defenseCount++; 
-                addFactToStream({ type: 'defense-action', slots: { 'action': data.action_type, 'target': data.target_node, 'description': data.description, 'priority': data.priority } }); 
+                addFactToStream({ type: 'defense-action', timestamp: data.timestamp, slots: { 'action': data.action_type, 'target': data.target_node, 'description': data.description, 'priority': data.priority, 'timestamp': data.timestamp } }); 
                 updateCounts(); 
             });
             
