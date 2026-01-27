@@ -463,5 +463,30 @@ else:
 
 ---
 
+## Programming Languages and Tools Used
+
+### Programming Languages
+- **Python**: Main backend logic, expert system integration, and API endpoints (Flask, CLIPS integration).
+- **JavaScript**: Front-end interactivity, AJAX requests, and dynamic UI updates.
+- **HTML/CSS**: User interface structure and styling (dashboard, hacker, defense, report, topology pages).
+
+### Tools, Libraries, and Frameworks
+- **Flask**: Python web framework for backend API and web server.
+- **Flask-SocketIO**: Real-time communication between server and client (WebSocket events).
+- **CLIPS (clipspy)**: Expert system engine for rule-based reasoning and attack detection.
+- **Jinja2**: Templating engine for rendering HTML pages from Flask.
+- **pip**: Python package manager for dependency management.
+- **Virtual Environment (venv)**: Isolated Python environment for package management.
+
+### Front-End Libraries
+- **Bootstrap**: Responsive UI components and layout (if used in templates).
+- **jQuery**: Simplified DOM manipulation and AJAX (if used in scripts).
+
+### Other
+- **Batch Scripts (.bat)**: For starting the application on Windows.
+- **requirements.txt**: Lists Python dependencies for easy setup.
+
+---
+
 *Document generated for IoT-Guardian Expert System v1.0*
 *© 2026 IoT-Guardian - All Rights Reserved*

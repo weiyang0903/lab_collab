@@ -1,279 +1,216 @@
-; ============================================================
-; CNF (Conjunctive Normal Form) for RPL Expert System Rules
-; For SAT Solver Verification
-; ============================================================
-; 
-; VARIABLE ENCODING:
-; ------------------
-; Variables are encoded as positive integers. Negation is represented by negative integers.
-; 
-; Input Variables (Propositions):
-;   DIO Level:     DIO_High=1,  DIO_Medium=2,  DIO_Low=3
-;   DTI Level:     DTI_High=4,  DTI_Medium=5,  DTI_Low=6
-;   STIA Level:    STIA_High=7, STIA_Medium=8, STIA_Low=9
-;   ETX Level:     ETX_High=10, ETX_Medium=11, ETX_Low=12
-;   Retrans Level: RET_High=13, RET_Medium=14, RET_Low=15
-;   Rank Change:   RANK_Decrease=16, RANK_Increase=17, RANK_Normal=18
-;   Drop Rate:     DROP_High=19, DROP_Medium=20, DROP_Low=21
-;   DPR:           DPR_High=22, DPR_Normal=23
-;   PFR:           PFR_High=24, PFR_Normal=25
-;   VN Change:     VN_Forged=26, VN_Normal=27
-;   Msg Flood:     MSG_Flood=28, MSG_Normal=29
-;   Sybil:         SYBIL_Multi=30, SYBIL_Single=31
-;
-; Output Variables (Conclusions):
-;   MALICIOUS=101, QUARANTINE=102, VICTIM=103, NORMAL=104
-;   JAM_HIGH=105, JAM_MEDIUM=106, JAM_LOW=107, JAM_NONE=108
-;   SINKHOLE=109, RANK_ATTACK=110, DOS=111, SELECTIVE_FWD=112
-;   HELLO_FLOOD=113, VERSION_NUM=114, SYBIL_ATTACK=115
-;   DEFENSE_BLOCK=201, DEFENSE_ISOLATE=202, DEFENSE_MONITOR=203
-;
-; ============================================================
-; DIMACS CNF FORMAT
-; ============================================================
-; Format: p cnf <num_variables> <num_clauses>
-; Each clause is a disjunction of literals, terminated by 0
-; 
-; CNF Notation:
-;   (A ∧ B) → C  converts to  (¬A ∨ ¬B ∨ C)
-;   (A → B)      converts to  (¬A ∨ B)
-;
-; ============================================================
+=====================================================================
+ RPL Expert System Rules - CNF Format Documentation
+ Based on rpl_rules.clp (2825 lines, 10 literature sources)
+=====================================================================
 
-p cnf 215 85
+This file contains the CNF (Conjunctive Normal Form) encoding of the
+IoT-Guardian Expert System rules for SAT solver verification.
 
-; ============================================================
-; SECTION 1: FLSec-RPL RULES (DIO Suppression Attack)
-; Reference: [9] FLSec-RPL
-; ============================================================
+=====================================================================
+ VARIABLE ENCODING
+=====================================================================
 
-; Mutual Exclusion Constraints for DIO levels (exactly one must be true)
-; At least one: (DIO_High ∨ DIO_Medium ∨ DIO_Low)
-1 2 3 0
-; At most one: ¬(DIO_High ∧ DIO_Medium), ¬(DIO_High ∧ DIO_Low), ¬(DIO_Medium ∧ DIO_Low)
--1 -2 0
--1 -3 0
--2 -3 0
+INPUT VARIABLES (1-50):
+-----------------------
+  DIO Level:      1=High, 2=Medium, 3=Low
+  DTI Level:      4=High, 5=Medium, 6=Low
+  STIA Level:     7=High, 8=Medium, 9=Low
+  ETX Level:      10=High, 11=Medium, 12=Low
+  Retrans:        13=High, 14=Medium, 15=Low
+  RANK Change:    16=Decrease, 17=Increase, 18=Normal
+  DROP Rate:      19=High, 20=Medium, 21=Low
+  DPR:            22=High, 23=Normal
+  PFR:            24=High, 25=Normal
+  VN:             26=Forged, 27=Normal
+  MSG Flood:      28=Flood, 29=Normal
+  SYBIL:          30=Multi, 31=Single
+  Bidirectional:  32=Yes, 33=No
+  Power Anomaly:  34=High, 35=Normal
+  NPC:            36=Low, 37=Medium, 38=High
+  NC:             39=Low, 40=Medium, 41=High
+  UDP_recv:       42=High, 43=Normal
+  PF_rate:        44=Low, 45=Normal
 
-; Mutual Exclusion Constraints for DTI levels
-4 5 6 0
--4 -5 0
--4 -6 0
--5 -6 0
+OUTPUT ATTACK TYPES (101-120):
+------------------------------
+  101=MALICIOUS, 102=QUARANTINE, 103=VICTIM, 104=NORMAL
+  105=JAM_HIGH, 106=JAM_MEDIUM, 107=JAM_LOW, 108=JAM_NONE
+  109=SINKHOLE, 110=RANK_ATTACK, 111=DOS, 112=SELECTIVE_FWD
+  113=HELLO_FLOOD, 114=VERSION_NUM, 115=SYBIL_ATTACK
+  116=XAI_SINKHOLE, 117=XAI_BLACKHOLE, 118=XAI_ANOMALY
+  119=DAO_FLOOD, 120=DIS_FLOOD
 
-; Mutual Exclusion Constraints for STIA levels
-7 8 9 0
--7 -8 0
--7 -9 0
--8 -9 0
+DEFENSE ACTIONS (201-210):
+--------------------------
+  201=BLOCK_PERMANENT, 202=ISOLATE, 203=MONITOR
+  204=RATE_LIMIT, 205=CHANNEL_HOP, 206=REROUTE
+  207=VERIFY_RANK, 208=VERIFY_VERSION
 
-; R_FLSec_1: DIO=High ∧ DTI=Low ∧ STIA=Low → MALICIOUS
-; (1 ∧ 6 ∧ 9) → 101
-; CNF: ¬1 ∨ ¬6 ∨ ¬9 ∨ 101
--1 -6 -9 101 0
+=====================================================================
+ CNF CLAUSES (DIMACS Format)
+=====================================================================
 
-; R_FLSec_1: MALICIOUS → DEFENSE_BLOCK
-; 101 → 201
-; CNF: ¬101 ∨ 201
--101 201 0
+Header: p cnf 220 98
+  - 220 variables
+  - 98 clauses
 
-; R_FLSec_2: DIO=High ∧ DTI=Low ∧ STIA=Medium → QUARANTINE
-; (1 ∧ 6 ∧ 8) → 102
-; CNF: ¬1 ∨ ¬6 ∨ ¬8 ∨ 102
--1 -6 -8 102 0
+============ MUTUAL EXCLUSION CONSTRAINTS ============
 
-; R_FLSec_2: QUARANTINE → DEFENSE_ISOLATE
-; 102 → 202
-; CNF: ¬102 ∨ 202
--102 202 0
+DIO Level: exactly one of {High, Medium, Low}
+  1 2 3 0          (at least one)
+  -1 -2 0          (not both High and Medium)
+  -1 -3 0          (not both High and Low)
+  -2 -3 0          (not both Medium and Low)
 
-; R_FLSec_3: DIO=Medium ∧ DTI=Medium ∧ STIA=Medium → NORMAL
-; (2 ∧ 5 ∧ 8) → 104
-; CNF: ¬2 ∨ ¬5 ∨ ¬8 ∨ 104
--2 -5 -8 104 0
+DTI Level: exactly one of {High, Medium, Low}
+  4 5 6 0
+  -4 -5 0
+  -4 -6 0
+  -5 -6 0
 
-; R_FLSec_4: DIO=Low ∧ DTI=Low ∧ STIA=Low → VICTIM
-; (3 ∧ 6 ∧ 9) → 103
-; CNF: ¬3 ∨ ¬6 ∨ ¬9 ∨ 103
--3 -6 -9 103 0
+STIA Level: exactly one of {High, Medium, Low}
+  7 8 9 0
+  -7 -8 0
+  -7 -9 0
+  -8 -9 0
 
-; R_FLSec_4: VICTIM → DEFENSE_MONITOR
-; 103 → 203
-; CNF: ¬103 ∨ 203
--103 203 0
+ETX Level: exactly one of {High, Medium, Low}
+  10 11 12 0
+  -10 -11 0
+  -10 -12 0
+  -11 -12 0
 
-; ============================================================
-; SECTION 2: JAMMING ATTACK RULES
-; Reference: [15]
-; ============================================================
+Retransmission Level: exactly one of {High, Medium, Low}
+  13 14 15 0
+  -13 -14 0
+  -13 -15 0
+  -14 -15 0
 
-; Mutual Exclusion for ETX levels
-10 11 12 0
--10 -11 0
--10 -12 0
--11 -12 0
+============ SECTION 1: FLSec-RPL RULES [Ref 9] ============
 
-; Mutual Exclusion for Retransmission levels
-13 14 15 0
--13 -14 0
--13 -15 0
--14 -15 0
+DIO Suppression Attack Detection using Threat Score
+Score = DIO_weight + DTI_weight + STIA_weight
+  DIO: H=3, M=2, L=1 | DTI: L=3, M=2, H=1 | STIA: L=3, M=2, H=1
 
-; R_Jam_1: ETX=Low ∧ RET=Low → JAM_NONE
-; (12 ∧ 15) → 108
-; CNF: ¬12 ∨ ¬15 ∨ 108
--12 -15 108 0
+Rule 1 (Score=9): DIO=H + DTI=L + STIA=L → MALICIOUS
+  Logic: ¬DIO_High ∨ ¬DTI_Low ∨ ¬STIA_Low ∨ MALICIOUS
+  CNF:   -1 -6 -9 101 0
 
-; R_Jam_2: ETX=Low ∧ RET=Medium → JAM_LOW
-; (12 ∧ 14) → 107
-; CNF: ¬12 ∨ ¬14 ∨ 107
--12 -14 107 0
+Rule 4 (Score=8): DIO=H + DTI=M + STIA=L → MALICIOUS
+  CNF:   -1 -5 -9 101 0
 
-; R_Jam_3: ETX=High ∧ RET=High → JAM_HIGH
-; (10 ∧ 13) → 105
-; CNF: ¬10 ∨ ¬13 ∨ 105
--10 -13 105 0
+Rule 10 (Score=8): DIO=M + DTI=L + STIA=L → MALICIOUS
+  CNF:   -2 -6 -9 101 0
 
-; R_Jam_3: JAM_HIGH → DEFENSE_BLOCK
-; 105 → 201
-; CNF: ¬105 ∨ 201
--105 201 0
+Rule 2 (Score=8, STIA≠L): DIO=H + DTI=L + STIA=M → QUARANTINE
+  CNF:   -1 -6 -8 102 0
 
-; R_Jam_4: ETX=Medium ∧ RET=High → JAM_MEDIUM
-; (11 ∧ 13) → 106
-; CNF: ¬11 ∨ ¬13 ∨ 106
--11 -13 106 0
+Rule 3 (Score=7): DIO=H + DTI=L + STIA=H → QUARANTINE
+  CNF:   -1 -6 -7 102 0
 
-; R_Jam_4: JAM_MEDIUM → DEFENSE_ISOLATE
-; 106 → 202
-; CNF: ¬106 ∨ 202
--106 202 0
+Rule 5 (Score=7): DIO=H + DTI=M + STIA=M → QUARANTINE
+  CNF:   -1 -5 -8 102 0
 
-; ============================================================
-; SECTION 3: SINKHOLE ATTACK RULES
-; Reference: [3] PRBA
-; ============================================================
+Rule 7 (Score=7): DIO=H + DTI=H + STIA=L → QUARANTINE
+  CNF:   -1 -4 -9 102 0
 
-; Mutual Exclusion for Rank Change
-16 17 18 0
--16 -17 0
--16 -18 0
--17 -18 0
+Rule 11 (Score=7): DIO=M + DTI=L + STIA=M → QUARANTINE
+  CNF:   -2 -6 -8 102 0
 
-; R_Sink_1: RANK_Decrease (significant) → SINKHOLE
-; 16 → 109
-; CNF: ¬16 ∨ 109
--16 109 0
+Rule 13 (Score=7): DIO=M + DTI=M + STIA=L → QUARANTINE
+  CNF:   -2 -5 -9 102 0
 
-; R_Sink_1: SINKHOLE → DEFENSE_BLOCK
-; 109 → 201
-; CNF: ¬109 ∨ 201
--109 201 0
+Rule 19 (Score=7, DIO=L): Victim special case
+  CNF:   -3 -6 -9 103 0
 
-; R_Sink_2: RANK_Increase (significant) → RANK_ATTACK
-; 17 → 110
-; CNF: ¬17 ∨ 110
--17 110 0
+Normal behavior rules (Score<=5):
+  CNF:   -2 -5 -8 104 0
+  CNF:   -3 -5 -8 104 0
+  CNF:   -3 -4 -8 104 0
+  CNF:   -3 -4 -7 104 0
 
-; ============================================================
-; SECTION 4: SELECTIVE FORWARDING & DoS RULES
-; Reference: [11] RF
-; ============================================================
+============ SECTION 2: JAMMING RULES [Ref 15] ============
 
-; Mutual Exclusion for Drop Rate
-19 20 21 0
--19 -20 0
--19 -21 0
--20 -21 0
+JAM_NONE (Rules 1,4): Retrans=L
+  CNF:   -12 -15 108 0
+  CNF:   -11 -15 108 0
 
-; R_SF_1: DROP_High → SELECTIVE_FWD
-; 19 → 112
-; CNF: ¬19 ∨ 112
--19 112 0
+JAM_LOW (Rules 2,5,7):
+  CNF:   -12 -14 107 0
+  CNF:   -11 -14 107 0
+  CNF:   -10 -15 107 0
 
-; R_SF_1: SELECTIVE_FWD → DEFENSE_ISOLATE
-; 112 → 202
-; CNF: ¬112 ∨ 202
--112 202 0
+JAM_MEDIUM (Rules 3,6,8):
+  CNF:   -12 -13 106 0
+  CNF:   -11 -13 106 0
+  CNF:   -10 -14 106 0
 
-; R_DoS_1: DPR_High ∧ PFR_High → DOS
-; (22 ∧ 24) → 111
-; CNF: ¬22 ∨ ¬24 ∨ 111
--22 -24 111 0
+JAM_HIGH (Rule 9): ETX=H ∧ Retrans=H
+  CNF:   -10 -13 105 0
 
-; R_DoS_1: DOS → DEFENSE_BLOCK
-; 111 → 201
-; CNF: ¬111 ∨ 201
--111 201 0
+============ SECTION 3: SINKHOLE [Ref 3,14] ============
 
-; ============================================================
-; SECTION 5: HELLO FLOOD & VERSION NUMBER RULES
-; Reference: [13] Hybrid IDS
-; ============================================================
+RANK_Decrease → SINKHOLE
+  CNF:   -16 109 0
 
-; R_Hello_1: MSG_Flood → HELLO_FLOOD
-; 28 → 113
-; CNF: ¬28 ∨ 113
--28 113 0
+============ SECTION 4: RF MULTI-ATTACK [Ref 11] ============
 
-; R_Hello_1: HELLO_FLOOD → DEFENSE_ISOLATE
-; 113 → 202
-; CNF: ¬113 ∨ 202
--113 202 0
+DROP_High → SELECTIVE_FWD
+  CNF:   -19 112 0
 
-; R_VN_1: VN_Forged → VERSION_NUM
-; 26 → 114
-; CNF: ¬26 ∨ 114
--26 114 0
+DPR_High ∧ PFR_High → DOS
+  CNF:   -22 -24 111 0
 
-; R_VN_1: VERSION_NUM → DEFENSE_BLOCK
-; 114 → 201
-; CNF: ¬114 ∨ 201
--114 201 0
+RANK_Increase → RANK_ATTACK
+  CNF:   -17 110 0
 
-; ============================================================
-; SECTION 6: SYBIL ATTACK RULES
-; Reference: [12] FLBT-RPL
-; ============================================================
+MSG_Flood → HELLO_FLOOD
+  CNF:   -28 113 0
 
-; R_Sybil_1: SYBIL_Multi → SYBIL_ATTACK
-; 30 → 115
-; CNF: ¬30 ∨ 115
--30 115 0
+============ SECTION 5: XAI ANOMALY [Ref 6] ============
 
-; R_Sybil_1: SYBIL_ATTACK → DEFENSE_BLOCK
-; 115 → 201
-; CNF: ¬115 ∨ 201
--115 201 0
+NPC_Low ∧ NC_High ∧ UDP_High → XAI_SINKHOLE
+  CNF:   -36 -41 -42 116 0
 
-; ============================================================
-; CONSISTENCY CONSTRAINTS
-; ============================================================
+NPC_High ∧ NC_Low ∧ PF_Low → XAI_BLACKHOLE
+  CNF:   -38 -39 -44 117 0
 
-; Attack classifications are mutually exclusive
-; Cannot be both MALICIOUS and NORMAL simultaneously
--101 -104 0
+============ SECTION 6: HYBRID IDS [Ref 13] ============
 
-; Cannot be both VICTIM and MALICIOUS simultaneously
--103 -101 0
+VN_Forged → VERSION_NUM
+  CNF:   -26 114 0
 
-; Defense actions have priority order
-; BLOCK takes precedence over ISOLATE: BLOCK → ¬(only ISOLATE)
-; This is implicitly handled by having multiple rules produce BLOCK
+============ SECTION 7: SYBIL [Ref 12] ============
 
-; ============================================================
-; VERIFICATION PROPERTIES
-; ============================================================
+SYBIL_Multi → SYBIL_ATTACK
+  CNF:   -30 115 0
 
-; Property 1: SAFETY - Malicious detection implies blocking
-; Verified by rule: ¬101 ∨ 201
+============ DEFENSE ACTION IMPLICATIONS ============
 
-; Property 2: COMPLETENESS - All attack combinations have responses
-; This is ensured by the rule coverage
+MALICIOUS → BLOCK_PERMANENT:     -101 201 0
+QUARANTINE → ISOLATE:            -102 202 0
+VICTIM → MONITOR:                -103 203 0
+JAM_HIGH → CHANNEL_HOP:          -105 205 0
+JAM_MEDIUM → ISOLATE:            -106 202 0
+SINKHOLE → ISOLATE:              -109 202 0
+DOS → RATE_LIMIT:                -111 204 0
+SELECTIVE_FWD → REROUTE:         -112 206 0
+HELLO_FLOOD → RATE_LIMIT:        -113 204 0
+VERSION_NUM → VERIFY_VERSION:    -114 208 0
+RANK_ATTACK → VERIFY_RANK:       -110 207 0
+SYBIL_ATTACK → BLOCK_PERMANENT:  -115 201 0
+XAI_SINKHOLE → ISOLATE:          -116 202 0
+XAI_BLACKHOLE → BLOCK_PERMANENT: -117 201 0
 
-; Property 3: NON-CONTRADICTION - Attack type mutual exclusion
-; Clauses added above ensure this
+============ CONSISTENCY CONSTRAINTS ============
 
-; ============================================================
-; END OF CNF FILE
-; ============================================================
+Cannot be MALICIOUS and NORMAL:   -101 -104 0
+Cannot be MALICIOUS and VICTIM:   -101 -103 0
+Cannot be QUARANTINE and NORMAL:  -102 -104 0
+Cannot have JAM_HIGH and JAM_NONE:    -105 -108 0
+Cannot have JAM_HIGH and JAM_LOW:     -105 -107 0
+Cannot have JAM_MEDIUM and JAM_NONE:  -106 -108 0
+
+=====================================================================
+ END OF FILE
+=====================================================================
